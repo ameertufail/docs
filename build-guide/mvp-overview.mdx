@@ -1,0 +1,108 @@
+---
+title: "MVP Roadmap Overview"
+description: "Three shippable milestones, each building on the last."
+---
+
+The build is structured as three MVPs. Each one is independently shippable and usable. You can tweet about each one.
+
+## The Three MVPs
+
+<CardGroup cols={3}>
+  <Card title="MVP 0: Foundation" icon="hammer" href="/build-guide/mvp-0-foundation">
+    GitHub auth, org/project isolation, prompt versioning with diffs, and an
+    audit log. A real product skeleton.
+  </Card>
+  <Card title="MVP 1: Core Eval Platform" icon="flask" href="/build-guide/mvp-1-eval-platform">
+    Full eval loop: upload dataset, configure checks + guardrails, run a
+    base-vs-candidate comparison, see the report.
+  </Card>
+  <Card title="MVP 2: Production-Grade" icon="rocket" href="/build-guide/mvp-2-polish">
+    SDK run logging, dashboards, onboarding polish, and open-source launch
+    package.
+  </Card>
+</CardGroup>
+
+---
+
+## Build Phases
+
+```
+MVP 0: Foundation (Shippable Skeleton)
+├── Iteration 0.1: Repo + Dev Environment
+├── Iteration 0.2: Auth + Multi-tenancy
+├── Iteration 0.3: Prompt CRUD + Versioning
+├── Iteration 0.4: Basic UI Shell + Deploy
+└── SHIP → "Sign in, create project, version prompts, see diffs"
+
+MVP 1: Core Eval Platform
+├── Iteration 1.1: Dataset Manager
+├── Iteration 1.2: Eval Config Builder
+├── Iteration 1.3: Eval Runner (Browser-Orchestrated)
+├── Iteration 1.4: Eval Report Page
+├── Iteration 1.5: Guardrails Pipeline
+└── SHIP → "Upload dataset, run comparison, see report"
+
+MVP 2: Production-Grade Polish
+├── Iteration 2.1: SDK + Run Logging
+├── Iteration 2.2: Dashboards & Observability
+├── Iteration 2.3: Demo Polish + Onboarding
+├── Iteration 2.4: Open Source Launch Prep
+└── SHIP → "Complete product with SDK, dashboards, and open source"
+```
+
+---
+
+## Acceptance Gates
+
+### MVP 0 is done when:
+
+- GitHub auth works end-to-end with stable session handling
+- Users can create orgs/projects with enforced RBAC boundaries
+- Prompt CRUD + immutable versioning + diff + release/archive are functional
+- Core mutations write audit events
+- The app is deployable without manual data patching
+
+### MVP 1 is done when:
+
+- Dataset CRUD and JSONL import are production-usable with line-level validation errors
+- Eval config creation/editing supports deterministic checks, guardrails, and optional judge rules
+- Browser orchestrator runs base vs candidate evals with retries, resume behavior, and progress updates
+- Eval report surfaces verdicts, regressions, pass/fail signals, and score deltas per item
+
+### MVP 2 is done when:
+
+- API key lifecycle + SDK run logging are available for production instrumentation
+- Dashboards provide trend visibility for latency, volume, and safety outcomes
+- Onboarding path (demo or scratch) gets users to first value quickly
+- Open-source launch package is complete (README, contributing guide, license, local setup docs)
+
+---
+
+## Scope Non-Goals (MVP 0–2)
+
+<Warning>
+  These are explicitly out of scope. Do not build them before MVP 2 ships.
+</Warning>
+
+- No default server-side eval orchestration pipeline
+- No default backend proxying of all provider inference traffic
+- No model fine-tuning or training job management
+- No enterprise SSO/SAML/SCIM or advanced billing controls
+- No autonomous agent-builder workflows
+
+---
+
+## Execution Model (Locked)
+
+PromptOps Studio officially locks eval execution to a **browser-orchestrated model** for all three MVPs.
+
+| Responsibility | Browser | Backend |
+|---------------|---------|---------|
+| Prompt rendering | ✓ | — |
+| LLM inference calls | ✓ (BYOK) | Only as CORS fallback |
+| Checks + guardrails | ✓ | — |
+| Judge scoring | ✓ | — |
+| Result ingestion | — | ✓ |
+| Run lifecycle | — | ✓ |
+| Auth + RBAC | — | ✓ |
+| Audit logging | — | ✓ |

@@ -1,0 +1,145 @@
+---
+title: "API Keys & Provider Keys"
+description: "Project API keys for SDK auth and BYOK provider key management."
+---
+
+## Project API Keys
+
+Project API keys authenticate SDK requests (`POST /api/runs`). They are scoped to a single project.
+
+<Warning>
+  The full key is shown **only once** when created. Store it securely — it cannot be retrieved again. If lost, revoke it and create a new one.
+</Warning>
+
+### Create API Key
+
+```
+POST /api/projects/:projectId/api-keys
+```
+
+Requires `ADMIN` or `OWNER` role.
+
+**Body:**
+```json
+{
+  "name": "Production Key"
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "data": {
+    "id": "01HXK...",
+    "name": "Production Key",
+    "key": "po_sk_ab12cd34ef56gh78",
+    "keyPrefix": "po_sk_ab12",
+    "createdAt": "2026-03-01T10:00:00Z"
+  }
+}
+```
+
+The `key` field is only present in this response. All subsequent reads return only `keyPrefix`.
+
+---
+
+### List API Keys
+
+```
+GET /api/projects/:projectId/api-keys
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "apiKeys": [
+      {
+        "id": "01HXK...",
+        "name": "Production Key",
+        "keyPrefix": "po_sk_ab12",
+        "lastUsedAt": "2026-03-10T09:12:00Z",
+        "createdAt": "2026-03-01T10:00:00Z"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### Revoke API Key
+
+```
+DELETE /api/api-keys/:keyId
+```
+
+Immediately invalidates the key. Any SDK requests using this key will get `401` responses.
+
+---
+
+## Provider Keys (BYOK)
+
+Provider keys are the LLM API keys used during eval runs. They are stored encrypted (AES-256-GCM) and are project-scoped.
+
+### Store Provider Key
+
+```
+POST /api/projects/:projectId/provider-keys
+```
+
+**Body:**
+```json
+{
+  "provider": "OPENAI",
+  "key": "sk-proj-..."
+}
+```
+
+The key is encrypted before storage. Only `key_hint` (last 3 characters) is stored for display.
+
+**Supported providers:**
+
+| Value | Provider |
+|-------|----------|
+| `OPENAI` | OpenAI |
+| `ANTHROPIC` | Anthropic |
+| `GROQ` | Groq |
+| `TOGETHER` | Together AI |
+| `CUSTOM` | Any OpenAI-compatible endpoint |
+
+---
+
+### List Provider Keys
+
+```
+GET /api/projects/:projectId/provider-keys
+```
+
+Returns configured providers with hints only — never the full key.
+
+**Response:**
+```json
+{
+  "data": {
+    "providerKeys": [
+      {
+        "id": "01HXP...",
+        "provider": "OPENAI",
+        "keyHint": "...abc",
+        "createdAt": "2026-03-01T10:00:00Z"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### Remove Provider Key
+
+```
+DELETE /api/provider-keys/:keyId
+```
+
+Removes the encrypted key. Any eval runs requiring this provider will fail until a new key is added.

@@ -1,0 +1,168 @@
+---
+title: "MVP 2 — Production-Grade Polish"
+description: "SDK logging, dashboards, demo polish, and open-source launch."
+---
+
+**Goal:** A complete product with production observability (SDK + dashboards), a polished onboarding experience, and everything needed to launch open source.
+
+<Tip>
+  Ship tweet: _"PromptOps Studio v1.0 is open source. Prompt versioning, eval runs, guardrails, SDK logging, and dashboards — all for free, all with your own API key."_
+</Tip>
+
+---
+
+## Iteration 2.1: SDK + Run Logging
+
+The SDK lets users log production LLM calls from any application, linking them to specific prompt versions.
+
+<Steps>
+  <Step title="Task 2.1.1 — API key lifecycle backend">
+    - `POST /api/projects/:projectId/api-keys` → create key, return plaintext **once**
+    - `GET /api/projects/:projectId/api-keys` → list keys (prefix only, no hash)
+    - `DELETE /api/api-keys/:keyId` → revoke key
+    
+    Keys are stored as SHA-256 hash. The `key_prefix` (first 8 chars) is stored for display.
+    
+    **Done when:** API key lifecycle works. Plaintext is returned only on creation.
+  </Step>
+  <Step title="Task 2.1.2 — Run logging endpoint">
+    `POST /api/runs` — authenticated by API key (not JWT). Accepts:
+    ```json
+    {
+      "promptVersionId": "01HXY...",
+      "input": { "customer_name": "Alice" },
+      "output": "Hello, Alice! ...",
+      "metrics": {
+        "latencyMs": 843,
+        "tokenCount": 312,
+        "costEstimate": 0.0004
+      }
+    }
+    ```
+    
+    **Done when:** SDK can log runs authenticated by project API key.
+  </Step>
+  <Step title="Task 2.1.3 — Build and publish the SDK">
+    Create `packages/sdk` — a lightweight Node/TS client:
+    ```typescript
+    import { PromptOps } from "@promptops/sdk";
+
+    const client = new PromptOps({ apiKey: process.env.PROMPTOPS_API_KEY });
+
+    const output = await callMyLLM(prompt);
+    await client.log({
+      promptVersionId: "01HXY...",
+      input: { customer_name: "Alice" },
+      output,
+      metrics: { latencyMs: 843 }
+    });
+    ```
+    
+    Publish to npm as `@promptops/sdk`.
+  </Step>
+  <Step title="Task 2.1.4 — API key UI">
+    Settings page section: list of API keys with prefix, created date, last used. "Create New Key" button → modal showing the key **once** with a copy button. "Revoke" with confirmation.
+  </Step>
+</Steps>
+
+---
+
+## Iteration 2.2: Dashboards & Observability
+
+<Steps>
+  <Step title="Task 2.2.1 — Run stats endpoint">
+    `GET /api/projects/:projectId/runs/stats` — returns aggregated stats:
+    ```json
+    {
+      "totalRuns": 1420,
+      "avgLatencyMs": 1103,
+      "p95LatencyMs": 2800,
+      "errorRate": 0.023,
+      "guardrailFailureRate": 0.008,
+      "runsByDay": [...]
+    }
+    ```
+  </Step>
+  <Step title="Task 2.2.2 — Dashboard UI">
+    Project overview page with:
+    - Run volume chart (last 30 days, line chart)
+    - Avg latency chart
+    - Guardrail failure rate trend
+    - Top prompt versions by run count
+    - Recent eval runs summary
+    
+    Built with Recharts or a similar lightweight chart library.
+  </Step>
+  <Step title="Task 2.2.3 — Run explorer">
+    Table of recent runs with: timestamp, prompt version, input snippet, output snippet, latency, guardrail status. Filters: date range, prompt version, source (SDK / UI / EVAL). Click row → full run detail modal.
+  </Step>
+</Steps>
+
+---
+
+## Iteration 2.3: Demo Polish + Onboarding
+
+<Steps>
+  <Step title="Task 2.3.1 — Demo data seeder">
+    A one-click "Load Demo Data" button for new projects. Seeds: 2 sample prompts with 3 versions each, 2 sample datasets (invoice extraction + support reply), 1 completed eval run with realistic results.
+  </Step>
+  <Step title="Task 2.3.2 — Onboarding flow">
+    After first login:
+    1. Welcome screen: "What do you want to do?" → "Start from scratch" or "Try with demo data"
+    2. If scratch: guided 3-step wizard (create prompt → create dataset → run first eval)
+    3. If demo: seed data + guided tour highlighting key features
+  </Step>
+  <Step title="Task 2.3.3 — BYOK setup flow">
+    When a user starts their first eval run without a provider key:
+    - Modal: "To run this eval, you need to add your OpenAI (or Anthropic) API key"
+    - Key input with link to provider docs
+    - Clear explanation of where the key is stored and that it never leaves their project
+    - Option to use deterministic-only checks (no LLM calls needed)
+  </Step>
+</Steps>
+
+---
+
+## Iteration 2.4: Open Source Launch Prep
+
+<Steps>
+  <Step title="Task 2.4.1 — README">
+    Top-level `README.md` with: hero screenshot/GIF, one-liner, feature list, quickstart (3 commands to run locally), architecture overview, contributing guide link, license badge.
+  </Step>
+  <Step title="Task 2.4.2 — Contributing guide">
+    `CONTRIBUTING.md`: development setup, branch naming, PR checklist, definition of done, code of conduct.
+  </Step>
+  <Step title="Task 2.4.3 — Local setup docs">
+    `docs/local-setup.md`: step-by-step local setup with troubleshooting. Should work for a developer who has never heard of PromptOps Studio before.
+  </Step>
+  <Step title="Task 2.4.4 — License and legal">
+    Add `LICENSE` file (MIT or Apache 2.0). Review dependencies for license compatibility.
+  </Step>
+  <Step title="Task 2.4.5 — GitHub repo polish">
+    - GitHub topics: `llmops`, `prompt-engineering`, `ai`, `cloudflare`, `nextjs`
+    - Issue templates (bug report, feature request)
+    - PR template matching the contribution checklist
+    - GitHub Actions CI: lint + typecheck + build on every PR
+  </Step>
+</Steps>
+
+---
+
+## 🚢 MVP 2 Ship Checkpoint — The Launch
+
+Post this on Product Hunt, Hacker News (Show HN), and Twitter:
+
+> 🚀 PromptOps Studio — open-source LLMOps for teams shipping AI features
+>
+> What it does:
+> - Prompt versioning with visual diffs + release management
+> - Datasets + automated eval runs (LLM-as-judge + deterministic checks)
+> - Guardrails: JSON schema, PII detection, injection heuristics
+> - SDK to log production runs from any app
+> - Dashboards: latency, volume, quality trends
+>
+> BYOK — your API key, your data, $0 infra cost.
+>
+> Open source. Self-host free. Hosted free tier available.
+>
+> GitHub: [link] | Live demo: [link]

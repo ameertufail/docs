@@ -1,0 +1,120 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "PromptOps Studio",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#6366f1",
+    "light": "#818cf8",
+    "dark": "#4f46e5",
+    "anchors": {
+      "from": "#6366f1",
+      "to": "#8b5cf6"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "GitHub",
+      "url": "https://github.com/your-org/promptops-studio"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Back to App",
+    "url": "https://promptops.studio"
+  },
+  "tabs": [
+    {
+      "name": "API Reference",
+      "url": "api-reference"
+    },
+    {
+      "name": "SDK",
+      "url": "sdk"
+    }
+  ],
+  "anchors": [
+    {
+      "name": "GitHub",
+      "icon": "github",
+      "url": "https://github.com/your-org/promptops-studio"
+    },
+    {
+      "name": "Community",
+      "icon": "discord",
+      "url": "https://discord.gg/promptops"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Getting Started",
+      "pages": [
+        "getting-started/introduction",
+        "getting-started/quickstart",
+        "getting-started/key-decisions"
+      ]
+    },
+    {
+      "group": "Core Concepts",
+      "pages": [
+        "concepts/target-users",
+        "concepts/architecture",
+        "concepts/data-model"
+      ]
+    },
+    {
+      "group": "Build Guide",
+      "pages": [
+        "build-guide/mvp-overview",
+        "build-guide/mvp-0-foundation",
+        "build-guide/mvp-1-eval-platform",
+        "build-guide/mvp-2-polish",
+        "build-guide/governance"
+      ]
+    },
+    {
+      "group": "API Reference",
+      "pages": [
+        "api-reference/overview",
+        "api-reference/authentication",
+        "api-reference/organizations",
+        "api-reference/projects",
+        "api-reference/prompts",
+        "api-reference/datasets",
+        "api-reference/evals",
+        "api-reference/runs",
+        "api-reference/api-keys"
+      ]
+    },
+    {
+      "group": "SDK",
+      "pages": [
+        "sdk/overview",
+        "sdk/installation",
+        "sdk/logging-runs"
+      ]
+    },
+    {
+      "group": "Shipping",
+      "pages": [
+        "shipping/build-in-public",
+        "shipping/monetization"
+      ]
+    },
+    {
+      "group": "Reference",
+      "pages": [
+        "reference/risk-register",
+        "reference/appendix-datasets",
+        "reference/appendix-judge-prompt",
+        "reference/appendix-verdict-logic"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/your-org/promptops-studio",
+    "twitter": "https://twitter.com/promptopsstudio"
+  }
+}

@@ -1,0 +1,112 @@
+---
+title: "API Overview"
+description: "Base URL, authentication, response format, and error handling."
+---
+
+## Base URL
+
+```
+Production:  https://promptops-api.<your-subdomain>.workers.dev
+Development: http://localhost:8787
+```
+
+---
+
+## Authentication
+
+All API endpoints (except `/api/auth/*`) require a valid JWT token in the `Authorization` header:
+
+```
+Authorization: Bearer <jwt>
+```
+
+JWTs are issued by `POST /api/auth/callback` after GitHub OAuth and expire after 7 days.
+
+**SDK endpoints** (`POST /api/runs`) use project API keys instead:
+
+```
+Authorization: Bearer po_sk_<key>
+```
+
+---
+
+## Response Format
+
+All responses follow this envelope:
+
+```json
+{
+  "data": { ... },
+  "error": null
+}
+```
+
+On error:
+
+```json
+{
+  "data": null,
+  "error": "VALIDATION_ERROR",
+  "message": "Human-readable description",
+  "details": { ... }
+}
+```
+
+---
+
+## HTTP Status Codes
+
+| Code | Meaning |
+|------|---------|
+| 200 | Success |
+| 201 | Created |
+| 400 | Bad request / validation error |
+| 401 | Missing or invalid token |
+| 403 | Insufficient permissions (RBAC) |
+| 404 | Resource not found |
+| 409 | Conflict (e.g. duplicate slug) |
+| 429 | Rate limit exceeded |
+| 500 | Internal server error |
+
+---
+
+## Pagination
+
+List endpoints use cursor-based pagination:
+
+```
+GET /api/datasets/:datasetId?limit=50&cursor=01HXY...
+```
+
+Response includes:
+
+```json
+{
+  "data": {
+    "items": [...],
+    "nextCursor": "01HXZ...",
+    "hasMore": true
+  }
+}
+```
+
+---
+
+## Rate Limiting
+
+API requests are rate limited per user:
+
+| Endpoint type | Limit |
+|--------------|-------|
+| Read endpoints | 1,000 req/min |
+| Write endpoints | 100 req/min |
+| Eval run creation | 10 req/min |
+| SDK run logging | 500 req/min |
+
+Rate limit headers are included in every response:
+
+```
+X-RateLimit-Limit: 100
+X-RateLimit-Remaining: 87
+X-RateLimit-Reset: 1709123456
+```

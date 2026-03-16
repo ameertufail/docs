@@ -1,0 +1,71 @@
+---
+title: "Judge Prompt Template"
+description: "The LLM-as-judge system prompt used during eval runs."
+---
+
+When judge scoring is enabled in an eval config, each output is scored using the following prompt template. The model is asked to return a structured JSON score with reasoning.
+
+## Template
+
+```
+You are an expert evaluator for LLM outputs. Your job is to score the given output based on the provided rubric.
+
+## Original Input
+{input}
+
+## LLM Output to Evaluate
+{output}
+
+## Expected Output (if available)
+{expected_output}
+
+## Scoring Rubric
+{rubric}
+
+## Instructions
+- Score the output on a scale of 1 to 5.
+- 1 = Completely wrong or unhelpful
+- 2 = Major issues, mostly incorrect
+- 3 = Acceptable but with notable problems
+- 4 = Good with minor issues
+- 5 = Excellent, meets all criteria
+
+Respond ONLY with this JSON (no other text):
+{
+  "score": <integer 1-5>,
+  "reasons": ["reason 1", "reason 2"],
+  "fails": ["specific failure 1"]
+}
+```
+
+## Variable Substitution
+
+| Variable | Source |
+|----------|--------|
+| `{input}` | The dataset item's `input` field (JSON stringified) |
+| `{output}` | The LLM output being evaluated |
+| `{expected_output}` | The dataset item's `expectedOutput` field, or `"Not provided"` |
+| `{rubric}` | Either the item-level `rubric` field, or the eval config's `judge.rubric` |
+
+Item-level rubrics take precedence over the config-level rubric. If neither is set, the judge is prompted to use its own quality judgment.
+
+## Why Low Temperature?
+
+Judge scoring uses `temperature: 0.1` by default. Higher temperatures introduce variance between identical runs — the same output might score 3 on one run and 4 on the next. Low temperature keeps scores consistent and reproducible.
+
+## Stored Fields
+
+The judge response is stored in `eval_run_items.base_metrics` and `candidate_metrics`:
+
+```json
+{
+  "latencyMs": 843,
+  "judgeScore": 4,
+  "judgeReasons": ["Correctly identified vendor and total", "Currency format is correct"],
+  "judgeFailures": ["Date format doesn't match expected ISO-8601"],
+  "checks": { "json_valid": true, "json_schema": false },
+  "guardrails": { "pii": false, "injection": false }
+}
+```
+
+The `judgeReasons` and `judgeFailures` are displayed in the eval report's item detail view, giving users a human-readable explanation for each score.

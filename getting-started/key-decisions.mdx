@@ -1,0 +1,107 @@
+---
+title: "Key Decisions"
+description: "The foundational architecture decisions that shape everything in PromptOps Studio."
+---
+
+## Decision 1: BYOK (Bring Your Own Key)
+
+PromptOps Studio does **not** proxy LLM inference. Users provide their own API keys (OpenAI, Anthropic, Groq, etc.) and inference calls go directly from the user's browser to the provider.
+
+### Why BYOK?
+
+<CardGroup cols={2}>
+  <Card title="$0 Infrastructure Cost" icon="dollar-sign">
+    Our infrastructure cost stays at $0 regardless of user count. No inference
+    markup, no compute bills.
+  </Card>
+  <Card title="Data Ownership" icon="lock">
+    Users keep full control of their API keys and data. Keys never touch our
+    backend in plaintext.
+  </Card>
+  <Card title="No Vendor Lock-in" icon="link-slash">
+    Works with any LLM provider. OpenAI, Anthropic, Groq, Together AI, or a
+    custom endpoint.
+  </Card>
+  <Card title="Industry Standard" icon="check">
+    Promptfoo, Braintrust, and others use the same model. It's a trust feature,
+    not a limitation.
+  </Card>
+</CardGroup>
+
+### How It Works Technically
+
+```
+User enters API key in Project Settings
+         ↓
+Key is stored encrypted in D1 (AES-256-GCM)
+         ↓
+During eval runs:
+  Browser orchestrator calls LLM provider directly
+  using the user's decrypted key
+         ↓
+Our backend only receives outputs for scoring,
+comparison, and storage
+```
+
+<Warning>
+  The thin Cloudflare Worker passthrough is **only** allowed as an explicit fallback for provider CORS edge cases. It is never the default execution path.
+</Warning>
+
+### Judge Scoring Key Precedence
+
+| Priority | Source | Notes |
+|----------|--------|-------|
+| 1 | User's own API key | Primary — uses the key stored in project settings |
+| 2 | Cloudflare Workers AI (Llama 3) | Free fallback for basic judge scoring without a key |
+| 3 | Deterministic checks only | Zero LLM calls — JSON schema, regex, exact match |
+
+---
+
+## Decision 2: $0 Infrastructure
+
+Every component runs on free tiers. The hosted product costs nothing to operate until you're at meaningful scale.
+
+| Component | Service | Free Tier Limit |
+|-----------|---------|----------------|
+| Frontend | Vercel | 100 GB bandwidth/month |
+| API + Compute | Cloudflare Workers | 100,000 requests/day |
+| Database | Cloudflare D1 | 5M reads/day, 100K writes/day |
+| File Storage | Cloudflare R2 | 10 GB storage, 10M reads/month |
+| Auth | GitHub OAuth | Unlimited (free) |
+| Judge Fallback | Cloudflare Workers AI | Limited free inference |
+
+---
+
+## Decision 3: Open Source + Hosted
+
+The codebase is open source (MIT or Apache 2.0). This creates two parallel tracks:
+
+<CardGroup cols={2}>
+  <Card title="Hosted Version" icon="cloud">
+    The Vercel + Cloudflare deployment. This becomes the paid product later.
+    Zero config for users.
+  </Card>
+  <Card title="Self-Hosted" icon="server">
+    Free forever. Self-hosters get the full product. They become community
+    advocates and the best free marketing.
+  </Card>
+</CardGroup>
+
+<Tip>
+  Self-hosters are not a threat to the business — they're the community. Lean into it.
+</Tip>
+
+---
+
+## Decision 4: Browser-Orchestrated Eval Execution
+
+Eval runs are orchestrated **in the browser**, not on the server.
+
+- The browser renders prompts, calls providers with BYOK keys, runs checks/guardrails/judge logic, and streams results back.
+- The backend handles: run lifecycle endpoints, result ingestion, aggregate summaries, auth, RBAC, and audit logging.
+
+This is locked for MVP 0, 1, and 2. Any proposal to make server-side orchestration the default path requires explicit architecture approval.
+
+<Info>
+  This decision is what makes $0 infrastructure possible. No server-side inference = no compute costs.
+</Info>

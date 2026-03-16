@@ -1,0 +1,171 @@
+---
+title: "Prompts & Versions"
+description: "Manage prompt definitions and their immutable version history."
+---
+
+<Note>
+  Prompt versions are **immutable**. Once created, a version's content can never be edited. Creating a new version is always how changes are tracked.
+</Note>
+
+## Endpoints
+
+### Create Prompt
+
+```
+POST /api/projects/:projectId/prompts
+```
+
+**Body:**
+```json
+{
+  "name": "invoice-extractor",
+  "description": "Extracts structured data from invoice text"
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "data": {
+    "id": "01HXY...",
+    "name": "invoice-extractor",
+    "description": "Extracts structured data from invoice text",
+    "projectId": "01HXZ...",
+    "createdAt": "2026-03-01T10:00:00Z"
+  }
+}
+```
+
+---
+
+### List Prompts
+
+```
+GET /api/projects/:projectId/prompts
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "prompts": [
+      {
+        "id": "01HXY...",
+        "name": "invoice-extractor",
+        "versionCount": 3,
+        "releasedVersion": { "id": "01HXA...", "versionNumber": 2 }
+      }
+    ]
+  }
+}
+```
+
+---
+
+### Get Prompt + Versions
+
+```
+GET /api/prompts/:promptId
+```
+
+Returns the prompt with its full version history.
+
+---
+
+### Create Version
+
+```
+POST /api/prompts/:promptId/versions
+```
+
+**Body:**
+```json
+{
+  "content": "Extract the following fields from the invoice text below:\n\nInvoice text: {{invoice_text}}\n\nReturn a JSON object with: vendor, total, date, currency.",
+  "variablesSchema": {
+    "invoice_text": { "type": "string", "description": "Raw invoice text" }
+  },
+  "modelConfig": {
+    "provider": "OPENAI",
+    "model": "gpt-4o-mini",
+    "temperature": 0.1,
+    "maxTokens": 500
+  },
+  "releaseNote": "Added currency field extraction"
+}
+```
+
+**Response:** `201 Created` — returns the new version with auto-incremented `versionNumber`.
+
+---
+
+### Get Version Details
+
+```
+GET /api/prompt-versions/:versionId
+```
+
+---
+
+### Release a Version
+
+```
+PATCH /api/prompt-versions/:versionId/release
+```
+
+Sets this version to `RELEASED`. Automatically archives the previously released version (if any).
+
+**Response:** `200 OK`
+```json
+{
+  "data": {
+    "id": "01HXA...",
+    "status": "RELEASED",
+    "previousReleasedVersionId": "01HXB..."
+  }
+}
+```
+
+---
+
+### Archive a Version
+
+```
+PATCH /api/prompt-versions/:versionId/archive
+```
+
+Sets this version to `ARCHIVED`. Cannot archive the currently RELEASED version (release a different version first).
+
+---
+
+### Get Diff Between Versions
+
+```
+GET /api/prompts/:promptId/diff?base=:baseVersionId&candidate=:candidateVersionId
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "baseVersion": 1,
+    "candidateVersion": 3,
+    "linesAdded": 4,
+    "linesRemoved": 2,
+    "hunks": [
+      {
+        "type": "unchanged",
+        "content": "Extract the following fields from the invoice text below:"
+      },
+      {
+        "type": "removed",
+        "content": "Return vendor, total, and date."
+      },
+      {
+        "type": "added",
+        "content": "Return a JSON object with: vendor, total, date, currency."
+      }
+    ]
+  }
+}
+```

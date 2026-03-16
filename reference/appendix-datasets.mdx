@@ -1,0 +1,48 @@
+---
+title: "Sample Datasets"
+description: "Example JSONL datasets for invoice extraction and support reply evaluation."
+---
+
+## Invoice Extraction Dataset
+
+Use this as a starting point for testing extraction prompts. Each item provides raw invoice text as input and a structured JSON object as expected output.
+
+```jsonl
+{"input": {"invoice_text": "Invoice #1234\nVendor: Acme Corp\nDate: 2024-03-15\nTotal: $1,250.00 USD"}, "expectedOutput": {"vendor": "Acme Corp", "total": 1250.00, "date": "2024-03-15", "currency": "USD"}}
+{"input": {"invoice_text": "Bill To: TechStart Inc\nFrom: Cloud Services Ltd\nAmount Due: €890.50\nIssue Date: 01/22/2024"}, "expectedOutput": {"vendor": "Cloud Services Ltd", "total": 890.50, "date": "2024-01-22", "currency": "EUR"}}
+{"input": {"invoice_text": "INVOICE\nSupplier: Global Widgets\nInvoice Date: March 3, 2024\nGrand Total: ¥15,000"}, "expectedOutput": {"vendor": "Global Widgets", "total": 15000, "date": "2024-03-03", "currency": "JPY"}}
+```
+
+**Recommended eval config for this dataset:**
+
+- `checks.json_valid: true`
+- `checks.json_schema` — validate `vendor` (string), `total` (number), `date` (string), `currency` (string) are all present
+- `guardrails.pii_detection: true` — invoices may contain PII in test data
+
+---
+
+## Support Reply Dataset
+
+Use this for testing customer support response prompts. Each item provides a customer message and context as input, with a rubric for LLM-as-judge scoring.
+
+```jsonl
+{"input": {"customer_message": "I've been waiting 3 weeks for my refund and nobody is responding to my emails!", "context": "Order #5678, refund initiated 18 days ago, processing time is normally 5-7 business days"}, "rubric": "Rate on: empathy (acknowledges frustration), accuracy (correct info about refund timeline), actionability (clear next steps), tone (professional but warm)"}
+{"input": {"customer_message": "How do I cancel my subscription?", "context": "Customer on annual plan, 3 months remaining, cancellation policy allows prorated refund"}, "rubric": "Rate on: clarity (clear cancellation steps), retention attempt (gentle, not pushy), accuracy (correct refund info), completeness (mentions prorated refund)"}
+```
+
+**Recommended eval config for this dataset:**
+
+- `checks.json_valid: false` — output is prose, not JSON
+- `judge.enabled: true` with the item-level rubrics
+- `guardrails.pii_detection: true` — support replies should never include customer PII
+- `thresholds.min_judge_score: 3.5` — support quality bar
+
+---
+
+## Download Templates
+
+You can download these templates from the PromptOps Studio UI:
+
+1. Go to a dataset detail page
+2. Click **Import JSONL**
+3. Click **Download sample template** to get a pre-formatted starter file

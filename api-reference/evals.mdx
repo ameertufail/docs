@@ -1,0 +1,238 @@
+---
+title: "Evals"
+description: "Create eval configs and run base-vs-candidate prompt comparisons."
+---
+
+## Eval Configs
+
+Eval configs define how evaluation works — which dataset, what checks, what guardrails, and whether to use LLM-as-judge. They are reusable across multiple runs.
+
+### Create Eval Config
+
+```
+POST /api/projects/:projectId/eval-configs
+```
+
+**Body:**
+```json
+{
+  "name": "invoice-strict-eval",
+  "datasetId": "01HXD...",
+  "rules": {
+    "checks": {
+      "json_valid": true,
+      "json_schema": {
+        "type": "object",
+        "properties": {
+          "vendor": { "type": "string" },
+          "total": { "type": "number" },
+          "date": { "type": "string" },
+          "currency": { "type": "string" }
+        },
+        "required": ["vendor", "total", "date", "currency"]
+      }
+    },
+    "guardrails": {
+      "pii_detection": true,
+      "prompt_injection_check": false
+    },
+    "judge": {
+      "enabled": true,
+      "provider": "user_key",
+      "model": "gpt-4o-mini",
+      "rubric": "Rate on: accuracy of all fields (1-5), correct data types (1-5).",
+      "scale_min": 1,
+      "scale_max": 5,
+      "temperature": 0.1
+    },
+    "thresholds": {
+      "min_judge_score": 4,
+      "all_checks_pass": true,
+      "no_guardrail_failures": true
+    },
+    "comparison": {
+      "delta_threshold": 0.5,
+      "sample_size": null
+    }
+  }
+}
+```
+
+---
+
+### List Eval Configs
+
+```
+GET /api/projects/:projectId/eval-configs
+```
+
+---
+
+### Get Eval Config
+
+```
+GET /api/eval-configs/:configId
+```
+
+---
+
+### Update Eval Config
+
+```
+PATCH /api/eval-configs/:configId
+```
+
+Update the name or rules. Existing runs are not affected.
+
+---
+
+## Eval Runs
+
+### Start Eval Run
+
+```
+POST /api/eval-runs
+```
+
+Creates a run in `QUEUED` status. The browser orchestrator picks it up immediately.
+
+**Body:**
+```json
+{
+  "evalConfigId": "01HXC...",
+  "baseVersionId": "01HXV1...",
+  "candidateVersionId": "01HXV2..."
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "data": {
+    "id": "01HXR...",
+    "status": "QUEUED",
+    "progressCurrent": 0,
+    "progressTotal": 50,
+    "createdAt": "2026-03-10T14:00:00Z"
+  }
+}
+```
+
+---
+
+### Get Run Status
+
+```
+GET /api/eval-runs/:runId
+```
+
+**Response (in-progress):**
+```json
+{
+  "data": {
+    "id": "01HXR...",
+    "status": "RUNNING",
+    "progressCurrent": 23,
+    "progressTotal": 50,
+    "summary": null
+  }
+}
+```
+
+**Response (completed):**
+```json
+{
+  "data": {
+    "id": "01HXR...",
+    "status": "COMPLETED",
+    "progressCurrent": 50,
+    "progressTotal": 50,
+    "summary": {
+      "total": 50,
+      "improved": 12,
+      "regressed": 3,
+      "same": 35,
+      "passRate": 0.94,
+      "avgJudgeScoreBase": 3.8,
+      "avgJudgeScoreCandidate": 4.2,
+      "avgLatencyMsBase": 1200,
+      "avgLatencyMsCandidate": 980
+    },
+    "finishedAt": "2026-03-10T14:08:00Z"
+  }
+}
+```
+
+---
+
+### Get Run Items
+
+```
+GET /api/eval-runs/:runId/items?verdict=REGRESSED&page=1
+```
+
+**Query parameters:**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `verdict` | string | Filter by `IMPROVED`, `REGRESSED`, `SAME`, or `UNKNOWN` |
+| `page` | integer | Page number (default: 1) |
+| `limit` | integer | Items per page (default: 25, max: 100) |
+
+**Response:**
+```json
+{
+  "data": {
+    "items": [
+      {
+        "id": "01HXI...",
+        "datasetItem": { "input": { "invoice_text": "..." }, "tags": ["usd"] },
+        "baseOutput": "{ \"vendor\": \"Acme\", \"total\": \"1250\", ... }",
+        "candidateOutput": "{ \"vendor\": \"Acme Corp\", \"total\": 1250.00, ... }",
+        "baseMetrics": {
+          "latencyMs": 1340,
+          "judgeScore": 3.2,
+          "checks": { "json_valid": true, "json_schema": false },
+          "guardrails": { "pii": false, "injection": false }
+        },
+        "candidateMetrics": {
+          "latencyMs": 980,
+          "judgeScore": 4.8,
+          "checks": { "json_valid": true, "json_schema": true },
+          "guardrails": { "pii": false, "injection": false }
+        },
+        "verdict": "IMPROVED"
+      }
+    ],
+    "total": 3,
+    "page": 1,
+    "totalPages": 1
+  }
+}
+```
+
+---
+
+### List Runs for Project
+
+```
+GET /api/projects/:projectId/eval-runs?limit=20&cursor=01HXR...
+```
+
+Returns all eval runs for a project, newest first.
+
+---
+
+## Verdict Logic
+
+The verdict for each item is computed by the browser orchestrator:
+
+| Condition | Verdict |
+|-----------|---------|
+| Candidate passes, base fails | `IMPROVED` |
+| Base passes, candidate fails | `REGRESSED` |
+| Both pass or both fail — score delta ≥ threshold | `IMPROVED` |
+| Both pass or both fail — score delta ≤ -threshold | `REGRESSED` |
+| Otherwise | `SAME` |
+
+The default `delta_threshold` is `0.5`. See [Verdict Calculation Logic](/reference/appendix-verdict-logic) for the full implementation.

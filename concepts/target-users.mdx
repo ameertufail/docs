@@ -1,0 +1,74 @@
+---
+title: "Target Users"
+description: "Who PromptOps Studio is built for and what each persona needs."
+---
+
+## Persona A: Solo Builder
+
+<Card title="Solo Builder" icon="user">
+  Building an AI feature in their app. Wants a minimal system to keep prompt
+  versions stable and ship changes with confidence.
+</Card>
+
+**Background:** A solo developer or indie hacker building an AI-powered product. They're shipping fast and don't have time to build eval infrastructure from scratch.
+
+**Pain points:**
+- Accidentally breaks something with a small prompt change and has no way to know
+- Manually tests prompts by pasting into ChatGPT — not repeatable
+- No diff view to understand what actually changed between versions
+
+**Key need:** _"Did my change make things worse?"_
+
+**How PromptOps Studio helps:** A lightweight prompt versioning system + quick eval runs against a small golden set. Fast to set up, easy to maintain.
+
+---
+
+## Persona B: Startup AI/Full-Stack Engineer
+
+<Card title="Startup Engineer" icon="users">
+  On a small team shipping AI features fast. Needs datasets, automated eval
+  runs, guardrails, and regression tracking.
+</Card>
+
+**Background:** An engineer at a 5–20 person startup where AI features are core to the product. The team ships weekly and prompt quality directly affects retention.
+
+**Pain points:**
+- Prompt changes by one engineer silently break something for another
+- No systematic eval process — "trust me, I tested it" is the workflow
+- JSON outputs keep failing schema validation in production
+- No audit trail for who changed what and when
+
+**Key need:** _"Can I safely promote this prompt to production?"_
+
+**How PromptOps Studio helps:** Full eval workflow — datasets, automated runs, guardrails, release gates. A "deploy" workflow for prompts analogous to CI/CD for code.
+
+---
+
+## Persona C: Tech Lead / Product Owner
+
+<Card title="Tech Lead / Product Owner" icon="chart-bar">
+  Doesn't write prompts but approves changes. Wants dashboards and a clear
+  report to approve or reject prompt changes.
+</Card>
+
+**Background:** A tech lead or product owner who signs off on AI feature changes. Technically literate but not writing prompts daily.
+
+**Pain points:**
+- Has to trust engineers' verbal summaries of prompt changes
+- No quantitative signal for "is v2 better than v1?"
+- Latency and cost increases are invisible until they hit the bill
+
+**Key need:** _"Show me the data — is v2 better than v1?"_
+
+**How PromptOps Studio helps:** Eval reports with clear pass/fail verdicts, regression highlights, judge score comparisons, and dashboard trends over time.
+
+---
+
+## Non-Targets (for MVP 0–2)
+
+These are real use cases but intentionally out of scope until after MVP 2:
+
+- Enterprise compliance/SSO/SAML users
+- Teams that need fine-tuning or model training management
+- Organizations requiring on-prem deployment with no cloud dependencies
+- Users who need autonomous agent-builder workflows

@@ -1,0 +1,150 @@
+---
+title: "Logging Runs"
+description: "How to log production LLM calls to PromptOps Studio."
+---
+
+## Basic Usage
+
+```typescript
+await client.log({
+  promptVersionId: "01HXV...",
+  input: { customer_message: "Where is my order?" },
+  output: "Your order #5678 is out for delivery and should arrive today.",
+  metrics: {
+    latencyMs: 620,
+    tokenCount: 89,
+    costEstimate: 0.0000134,
+  }
+});
+```
+
+## Parameters
+
+<ParamField body="promptVersionId" type="string">
+  The ID of the prompt version used to generate this output. Highly recommended — without it, runs appear in dashboards but cannot be attributed to a specific version.
+</ParamField>
+
+<ParamField body="input" type="object" required>
+  A JSON object of the input variables passed to the prompt template. Should match the `variablesSchema` defined on the prompt version.
+</ParamField>
+
+<ParamField body="output" type="string" required>
+  The raw LLM output string.
+</ParamField>
+
+<ParamField body="metrics.latencyMs" type="number">
+  Total round-trip time in milliseconds from request to complete response.
+</ParamField>
+
+<ParamField body="metrics.tokenCount" type="number">
+  Total tokens used (prompt + completion). Available from the LLM provider's response.
+</ParamField>
+
+<ParamField body="metrics.costEstimate" type="number">
+  Estimated cost in USD. Compute this from the provider's per-token pricing.
+</ParamField>
+
+<ParamField body="metrics.guardrails" type="object">
+  Results of any guardrail checks you ran client-side.
+  
+  ```typescript
+  guardrails: {
+    pii: false,      // true if PII was detected
+    injection: false // true if injection was detected
+  }
+  ```
+</ParamField>
+
+---
+
+## Fire-and-Forget Pattern
+
+Most applications use logging as fire-and-forget — you don't await the response:
+
+```typescript
+async function handleSupport(message: string) {
+  const start = Date.now();
+  const output = await callOpenAI(message);
+  
+  // Non-blocking — don't await this
+  client.log({
+    promptVersionId: RELEASED_VERSION_ID,
+    input: { customer_message: message },
+    output,
+    metrics: { latencyMs: Date.now() - start }
+  });
+
+  return output;
+}
+```
+
+Errors in the log call are caught internally and won't affect your response path.
+
+---
+
+## Next.js / Edge Runtime
+
+For Next.js API routes or Server Actions:
+
+```typescript
+// app/api/support/route.ts
+import { PromptOps } from "@promptops/sdk";
+import { NextResponse } from "next/server";
+
+const promptops = new PromptOps({ apiKey: process.env.PROMPTOPS_API_KEY! });
+
+export async function POST(req: Request) {
+  const { message } = await req.json();
+  const start = Date.now();
+
+  const output = await callLLM(message);
+
+  // Use waitUntil in Edge runtime to ensure the log completes
+  // even after the response is sent
+  // (works in Vercel Edge Functions, Cloudflare Workers)
+  // ctx.waitUntil(
+  promptops.log({
+    promptVersionId: process.env.PROMPT_VERSION_ID!,
+    input: { message },
+    output,
+    metrics: { latencyMs: Date.now() - start }
+  });
+  // );
+
+  return NextResponse.json({ output });
+}
+```
+
+---
+
+## Finding Your Prompt Version ID
+
+You need the version ID to link runs to a specific version. The easiest approach:
+
+1. Go to your prompt in PromptOps Studio
+2. Click on the RELEASED version
+3. Copy the version ID from the URL or version detail page
+4. Store it as an environment variable: `PROMPT_VERSION_ID=01HXV...`
+
+When you release a new version, update `PROMPT_VERSION_ID` in your deployment.
+
+---
+
+## TypeScript Types
+
+```typescript
+interface LogPayload {
+  promptVersionId?: string;
+  input: Record<string, unknown>;
+  output: string;
+  metrics?: {
+    latencyMs?: number;
+    tokenCount?: number;
+    costEstimate?: number;
+    guardrails?: {
+      pii?: boolean;
+      injection?: boolean;
+    };
+  };
+}
+```

@@ -1,0 +1,81 @@
+---
+title: "Verdict Calculation Logic"
+description: "How IMPROVED / REGRESSED / SAME verdicts are computed per eval run item."
+---
+
+Each item in an eval run receives a verdict comparing the base version's output to the candidate version's output.
+
+## Algorithm
+
+```typescript
+function calculateVerdict(
+  baseMetrics: ItemMetrics,
+  candidateMetrics: ItemMetrics,
+  deltaThreshold: number = 0.5
+): Verdict {
+  const basePassed =
+    baseMetrics.allChecksPassed && !baseMetrics.guardrailFailures;
+  const candidatePassed =
+    candidateMetrics.allChecksPassed && !candidateMetrics.guardrailFailures;
+
+  // Clear pass/fail difference
+  if (candidatePassed && !basePassed) return "IMPROVED";
+  if (basePassed && !candidatePassed) return "REGRESSED";
+
+  // Both passed or both failed — compare judge scores
+  if (baseMetrics.judgeScore !== null && candidateMetrics.judgeScore !== null) {
+    const delta = candidateMetrics.judgeScore - baseMetrics.judgeScore;
+    if (delta >= deltaThreshold) return "IMPROVED";
+    if (delta <= -deltaThreshold) return "REGRESSED";
+  }
+
+  return "SAME";
+}
+```
+
+## Decision Table
+
+| Base passes? | Candidate passes? | Judge delta | Verdict |
+|-------------|-------------------|-------------|---------|
+| ❌ | ✅ | — | **IMPROVED** |
+| ✅ | ❌ | — | **REGRESSED** |
+| ✅ | ✅ | ≥ +0.5 | **IMPROVED** |
+| ✅ | ✅ | ≤ -0.5 | **REGRESSED** |
+| ✅ | ✅ | -0.5 to +0.5 | **SAME** |
+| ❌ | ❌ | ≥ +0.5 | **IMPROVED** |
+| ❌ | ❌ | ≤ -0.5 | **REGRESSED** |
+| ❌ | ❌ | -0.5 to +0.5 | **SAME** |
+| any | any | no judge | based on pass/fail only |
+
+## "Passes" Definition
+
+An item "passes" when all of the following are true (based on the eval config's `thresholds`):
+
+- `allChecksPassed` — all enabled deterministic checks passed (json_valid, json_schema, regex, exact_match)
+- `!guardrailFailures` — no PII or injection detected
+- If `min_judge_score` is set: `judgeScore >= thresholds.min_judge_score`
+
+## Configuring the Threshold
+
+The `delta_threshold` is set per eval config in the `comparison` block:
+
+```json
+{
+  "comparison": {
+    "delta_threshold": 0.5
+  }
+}
+```
+
+A threshold of `0.5` means: only call it IMPROVED or REGRESSED if the judge score changed by half a point or more on a 1–5 scale. This prevents noise from minor score fluctuations from being labeled as regressions.
+
+Raise the threshold (e.g. `1.0`) if you want to be less sensitive to small score changes. Lower it (e.g. `0.25`) if every small improvement matters in your use case.
+
+## UNKNOWN Verdict
+
+An item receives `UNKNOWN` when:
+
+- The eval run item was created but the browser orchestrator never submitted results for it
+- The LLM call failed for both versions (network error, rate limit after all retries)
+
+`UNKNOWN` items are excluded from the pass rate calculation in the run summary.

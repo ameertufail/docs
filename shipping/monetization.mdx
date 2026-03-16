@@ -1,0 +1,95 @@
+---
+title: "Monetization Plan"
+description: "Free tier, Pro, and Team plans — and how to implement them."
+---
+
+<Note>
+  Don't build payment infrastructure until you have users **asking** to pay. Validate demand first.
+</Note>
+
+## Plans
+
+### Free (always free, generous)
+
+- 1 org, 2 projects
+- 3 prompts per project
+- 50 dataset items per dataset
+- 5 eval runs per day
+- 7 days of run history
+- Community support
+
+### Pro — $15–25/month per seat
+
+- Unlimited projects, prompts, datasets
+- Unlimited eval runs
+- 90 days of run history
+- CSV/JSON export
+- Priority support
+
+### Team — $40–60/month per seat
+
+- Everything in Pro
+- Unlimited org members
+- Full RBAC (Viewer, Member, Admin, Owner)
+- Audit log access
+- Webhook alerts on regression
+- Release gates (block promotion if eval fails)
+
+---
+
+## Implementation
+
+Monetization is enforced through the `plan` field on the `orgs` table:
+
+```typescript
+type Plan = "FREE" | "PRO" | "TEAM";
+```
+
+API middleware checks plan limits before allowing actions:
+
+```typescript
+// Example: limit eval runs per day on free tier
+async function checkEvalRunLimit(orgId: string, db: D1Database) {
+  const org = await getOrg(orgId, db);
+  if (org.plan !== "FREE") return; // No limit on paid plans
+
+  const todayCount = await countEvalRunsToday(orgId, db);
+  if (todayCount >= 5) {
+    throw new Error("FREE_TIER_LIMIT: 5 eval runs per day on the free plan. Upgrade to Pro for unlimited runs.");
+  }
+}
+```
+
+**Payment stack:** Stripe (free until you earn). Add it when the first user asks to upgrade.
+
+---
+
+## Limit Enforcement Summary
+
+| Feature | Free | Pro | Team |
+|---------|------|-----|------|
+| Orgs | 1 | Unlimited | Unlimited |
+| Projects | 2 | Unlimited | Unlimited |
+| Prompts per project | 3 | Unlimited | Unlimited |
+| Dataset items | 50 | Unlimited | Unlimited |
+| Eval runs/day | 5 | Unlimited | Unlimited |
+| Run history | 7 days | 90 days | 90 days |
+| Export | — | ✓ | ✓ |
+| Members | 1 | 1 seat/billing | Unlimited |
+| Full RBAC | — | — | ✓ |
+| Audit log | — | — | ✓ |
+| Webhook alerts | — | — | ✓ |
+| Release gates | — | — | ✓ |
+
+---
+
+## Sequencing
+
+1. **Ship MVP 2** — get users on the free tier
+2. **Listen** — what are paying users asking for that's blocked by limits?
+3. **Add Stripe** — only when someone says "I want to pay, how?"
+4. **Iterate pricing** — $15–25/month is a starting point, not sacred
+
+<Tip>
+  The free tier should be genuinely useful for solo builders and small teams. Generous free tiers drive word-of-mouth. Stingy free tiers drive users to competitors.
+</Tip>

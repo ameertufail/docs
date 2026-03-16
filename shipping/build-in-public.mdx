@@ -1,0 +1,82 @@
+---
+title: "Build in Public"
+description: "Strategy for building an audience while shipping PromptOps Studio."
+---
+
+Building in public means sharing progress, learnings, and milestones openly as you build. It creates accountability, attracts early users, and turns the build itself into marketing.
+
+## What to Post at Each Iteration
+
+Every iteration has a ship checkpoint with a tweet template. The format is consistent:
+
+1. **Screenshot or GIF** of the feature working — show, don't just tell
+2. **Technical learning** — one thing you learned building it
+3. **Next up** — builds anticipation
+
+Use hashtags: `#BuildInPublic` `#LLMOps` `#OpenSource`
+
+Post on: Twitter/X, LinkedIn, relevant Discord servers, Reddit (r/LocalLLaMA, r/MachineLearning)
+
+---
+
+## Tweet Templates by Milestone
+
+### MVP 0 — Foundation
+> 🚀 Shipped MVP 0 of PromptOps Studio — an open-source LLMOps platform.
+>
+> What it does today:
+> - GitHub auth with multi-tenant orgs + RBAC
+> - Prompt versioning with `{{variable}}` templates
+> - Visual diffs between versions
+> - Release management (promote/rollback)
+> - Full audit trail
+>
+> Live at [URL]. Next up: datasets + eval engine.
+>
+> Building in public — star the repo if this interests you ⭐
+
+### MVP 1 — Core Eval Platform
+> 📊 The core eval loop is live in PromptOps Studio.
+>
+> - Upload your golden dataset (manually or via JSONL)
+> - Configure checks: JSON schema, PII detection, LLM-as-judge
+> - Run base vs candidate comparison — in the browser, with your own API key
+> - See a full report: verdicts, regressions, score deltas
+>
+> This is the problem I kept hitting on every AI project. Try it at [URL] ⚡
+
+### MVP 2 — Open Source Launch
+> 🚀 PromptOps Studio v1.0 is open source.
+>
+> Prompt versioning, eval runs, guardrails, SDK logging, dashboards — all for free, all with your own API key.
+>
+> BYOK = $0 infra cost for us, full data ownership for you.
+>
+> GitHub: [link] | Live demo: [link]
+
+---
+
+## Launch Channels
+
+| Channel | When | Why |
+|---------|------|-----|
+| Twitter/X | Throughout build | Build-in-public community, developer audience |
+| LinkedIn | MVP 0 + MVP 2 | Professional network, broader reach |
+| Product Hunt | MVP 2 ready | Discovery, early adopter community |
+| Hacker News (Show HN) | MVP 2 with polished demo | Technical audience, high signal feedback |
+| Reddit r/LocalLLaMA | MVP 1 + MVP 2 | LLM-focused community |
+| Reddit r/SideProject | MVP 0 | Indie builder community |
+| Dev.to / Hashnode | After MVP 1 | Write a technical blog post about the architecture |
+| Discord | Throughout | AI/ML communities, Cloudflare Workers community |
+
+---
+
+## Content Ideas Between Milestones
+
+Not just shipping posts — explain what you're building and why:
+
+- **Architecture decisions:** "Why we chose browser-orchestrated eval execution over server-side" 
+- **Technical deep-dives:** "How we store LLM provider keys securely with AES-256-GCM on Cloudflare D1"
+- **Problem framing:** "The four LLMOps problems we kept hitting on every AI project"
+- **Comparison posts:** "PromptOps Studio vs Braintrust vs Langsmith — different tradeoffs"
+- **Progress updates:** "Week 3: built the eval runner, here's what we learned"

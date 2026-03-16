@@ -1,0 +1,144 @@
+---
+title: "Architecture"
+description: "Tech stack, system design, and folder structure for PromptOps Studio."
+---
+
+## Stack Overview
+
+```
+┌─────────────────────────────────────────────┐
+│                   Frontend                   │
+│          Next.js 14 (App Router)             │
+│          Tailwind CSS + shadcn/ui            │
+│          Deployed on Vercel (free)           │
+└─────────────────┬───────────────────────────┘
+                  │ API calls
+                  ▼
+┌─────────────────────────────────────────────┐
+│                  Backend                     │
+│          Cloudflare Workers (Hono.js)        │
+│          Auth: GitHub OAuth + JWT            │
+│          RBAC middleware                     │
+│          Deployed on Cloudflare (free)       │
+└──────┬──────────┬──────────┬────────────────┘
+       │          │          │
+       ▼          ▼          ▼
+┌──────────┐ ┌────────┐ ┌──────────┐
+│ D1 (SQL) │ │ R2     │ │ Workers  │
+│ All data │ │ Files  │ │ API      │
+│ tables   │ │ JSONL  │ │ + Auth   │
+└──────────┘ └────────┘ └──────────┘
+
+┌─────────────────────────────────────────────┐
+│            LLM Inference (BYOK)              │
+│  User's browser → OpenAI / Anthropic / etc.  │
+│  User's own API key — never touches backend  │
+└─────────────────────────────────────────────┘
+```
+
+---
+
+## Technology Choices
+
+### Frontend
+
+<AccordionGroup>
+  <Accordion title="Next.js 14 (App Router)">
+    Server components reduce client bundle size. Built-in API routes for prototyping. Excellent Vercel integration and a huge ecosystem. App Router enables layouts, streaming, and server-side data fetching without extra setup.
+  </Accordion>
+  <Accordion title="Tailwind CSS + shadcn/ui">
+    shadcn/ui is not a component library — it's copy-paste components built on Radix + Tailwind. No dependency bloat, full customization. You own the components and can modify them freely.
+  </Accordion>
+</AccordionGroup>
+
+### Backend
+
+<AccordionGroup>
+  <Accordion title="Cloudflare Workers + Hono.js">
+    Hono is a lightweight, fast framework built for edge runtimes. It has native D1/R2/Queue bindings. Workers handle 100K requests/day on the free tier and deploy globally with zero config.
+  </Accordion>
+  <Accordion title="Cloudflare D1">
+    SQLite-based relational database. Perfect for the audit-heavy, relational data model. The free tier (5M reads/day, 100K writes/day) is generous for early-stage products.
+  </Accordion>
+  <Accordion title="Cloudflare R2">
+    S3-compatible object storage for dataset JSONL files and eval report exports. 10 GB free storage and 10M reads/month.
+  </Accordion>
+  <Accordion title="GitHub OAuth">
+    Free, all target users have GitHub accounts, and simple to implement. No third-party auth service dependency.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Folder Structure
+
+```
+promptops-studio/
+├── apps/
+│   ├── web/                          # Next.js frontend
+│   │   └── src/
+│   │       ├── app/                  # App Router pages
+│   │       │   ├── (auth)/           # Login/callback routes
+│   │       │   └── (dashboard)/      # Main app layout
+│   │       │       └── [orgSlug]/
+│   │       │           └── [projectSlug]/
+│   │       │               ├── prompts/
+│   │       │               ├── datasets/
+│   │       │               ├── evals/
+│   │       │               ├── runs/
+│   │       │               └── settings/
+│   │       ├── components/
+│   │       │   ├── ui/               # shadcn components
+│   │       │   ├── prompts/          # Prompt editor, diff viewer
+│   │       │   ├── datasets/         # Dataset table, JSONL uploader
+│   │       │   ├── evals/            # Eval config builder, report
+│   │       │   ├── runs/             # Run dashboard, charts
+│   │       │   └── layout/           # Sidebar, org switcher, nav
+│   │       └── lib/
+│   │           ├── api.ts            # API client (fetch wrapper)
+│   │           ├── auth.ts           # Auth helpers
+│   │           └── utils.ts          # Shared utilities
+│   │
+│   └── api/                          # Cloudflare Workers backend
+│       └── src/
+│           ├── index.ts              # Hono app entry point
+│           ├── routes/               # Auth, orgs, projects, prompts, datasets, evals
+│           ├── middleware/           # Auth, RBAC, audit, rate limiting
+│           ├── services/             # Guardrails, judge scoring, diff
+│           └── db/                   # D1 schema + typed query helpers
+│
+├── packages/
+│   ├── shared/                       # Shared types & Zod schemas
+│   └── sdk/                          # PromptOps SDK (Node/TS)
+│
+├── turbo.json                        # Turborepo config
+├── pnpm-workspace.yaml
+└── README.md
+```
+
+---
+
+## RBAC Model
+
+Access is controlled at the organization level with four roles:
+
+| Role | Can Read | Can Write | Can Manage Members | Can Delete Org |
+|------|----------|-----------|-------------------|----------------|
+| VIEWER | ✓ | — | — | — |
+| MEMBER | ✓ | ✓ | — | — |
+| ADMIN | ✓ | ✓ | ✓ | — |
+| OWNER | ✓ | ✓ | ✓ | ✓ |
+
+---
+
+## URL Structure
+
+```
+/{orgSlug}/{projectSlug}/prompts
+/{orgSlug}/{projectSlug}/prompts/{promptId}
+/{orgSlug}/{projectSlug}/prompts/{promptId}/versions/{versionId}
+/{orgSlug}/{projectSlug}/datasets
+/{orgSlug}/{projectSlug}/evals
+/{orgSlug}/{projectSlug}/runs
+/{orgSlug}/{projectSlug}/settings
+```

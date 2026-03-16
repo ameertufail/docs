@@ -1,0 +1,105 @@
+---
+title: "Runs"
+description: "Log and query production LLM runs via SDK or API."
+---
+
+Runs are individual LLM calls logged from your application (via SDK), from the UI playground, or generated during eval runs. They power the observability dashboards.
+
+## Endpoints
+
+### Log a Run (SDK)
+
+```
+POST /api/runs
+Authorization: Bearer po_sk_<api-key>
+```
+
+This endpoint authenticates with a **project API key** (not a JWT). See [API Keys](/api-reference/api-keys) for how to create one.
+
+**Body:**
+```json
+{
+  "promptVersionId": "01HXV...",
+  "input": {
+    "invoice_text": "Invoice #1234\nVendor: Acme Corp..."
+  },
+  "output": "{ \"vendor\": \"Acme Corp\", \"total\": 1250.00, ... }",
+  "metrics": {
+    "latencyMs": 843,
+    "tokenCount": 312,
+    "costEstimate": 0.0004,
+    "guardrails": {
+      "pii": false,
+      "injection": false
+    }
+  }
+}
+```
+
+**Notes:**
+- `promptVersionId` is optional but strongly recommended for version-level tracking
+- `metrics` is optional — log what you have
+- `costEstimate` is in USD
+
+**Response:** `201 Created`
+```json
+{
+  "data": { "id": "01HXR..." }
+}
+```
+
+---
+
+### List Runs
+
+```
+GET /api/projects/:projectId/runs
+```
+
+**Query parameters:**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `promptVersionId` | string | Filter by specific version |
+| `source` | string | `SDK`, `UI`, or `EVAL` |
+| `from` | string | ISO-8601 start date |
+| `to` | string | ISO-8601 end date |
+| `limit` | integer | Default 50, max 200 |
+| `cursor` | string | Pagination cursor |
+
+---
+
+### Get Run Stats
+
+```
+GET /api/projects/:projectId/runs/stats?from=2026-03-01&to=2026-03-10
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "totalRuns": 1420,
+    "avgLatencyMs": 1103,
+    "p50LatencyMs": 890,
+    "p95LatencyMs": 2800,
+    "p99LatencyMs": 4200,
+    "errorRate": 0.023,
+    "guardrailFailureRate": 0.008,
+    "totalTokens": 441840,
+    "estimatedCostUsd": 0.177,
+    "runsByDay": [
+      { "date": "2026-03-01", "count": 134 },
+      { "date": "2026-03-02", "count": 98 }
+    ],
+    "byPromptVersion": [
+      {
+        "versionId": "01HXV...",
+        "versionNumber": 3,
+        "runCount": 1102,
+        "avgLatencyMs": 1050
+      }
+    ]
+  }
+}
+```

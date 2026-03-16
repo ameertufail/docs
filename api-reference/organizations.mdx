@@ -1,0 +1,144 @@
+---
+title: "Organizations"
+description: "Create and manage organizations and their members."
+---
+
+## Endpoints
+
+### Create Organization
+
+```
+POST /api/orgs
+```
+
+**Body:**
+```json
+{
+  "name": "My Team",
+  "slug": "my-team"
+}
+```
+
+The authenticated user is automatically added as `OWNER`.
+
+**Response:** `201 Created`
+```json
+{
+  "data": {
+    "id": "01HXZ...",
+    "name": "My Team",
+    "slug": "my-team",
+    "plan": "FREE",
+    "createdAt": "2026-03-01T10:00:00Z"
+  }
+}
+```
+
+---
+
+### List User's Organizations
+
+```
+GET /api/orgs
+```
+
+Returns all orgs the authenticated user is a member of, with their role in each.
+
+**Response:**
+```json
+{
+  "data": {
+    "orgs": [
+      {
+        "id": "01HXZ...",
+        "name": "My Team",
+        "slug": "my-team",
+        "plan": "FREE",
+        "role": "OWNER",
+        "memberCount": 3
+      }
+    ]
+  }
+}
+```
+
+---
+
+### Get Organization
+
+```
+GET /api/orgs/:orgId
+```
+
+Returns org details and full member list. Requires at least `VIEWER` role.
+
+**Response:**
+```json
+{
+  "data": {
+    "id": "01HXZ...",
+    "name": "My Team",
+    "slug": "my-team",
+    "plan": "FREE",
+    "members": [
+      {
+        "userId": "01HXY...",
+        "name": "Jane Smith",
+        "email": "jane@example.com",
+        "avatarUrl": "https://...",
+        "role": "OWNER",
+        "joinedAt": "2026-03-01T10:00:00Z"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### Invite Member
+
+```
+POST /api/orgs/:orgId/members
+```
+
+Requires `ADMIN` or `OWNER` role.
+
+**Body:**
+```json
+{
+  "email": "colleague@example.com",
+  "role": "MEMBER"
+}
+```
+
+<Note>
+  In MVP 0–2, this is a direct add (not an email invite flow). The user must already have a PromptOps Studio account. An email invite flow is a post-MVP 2 feature.
+</Note>
+
+---
+
+### Update Member Role
+
+```
+PATCH /api/orgs/:orgId/members/:userId
+```
+
+Requires `ADMIN` or `OWNER` role. An `OWNER` cannot demote themselves — another owner must do it.
+
+**Body:**
+```json
+{
+  "role": "ADMIN"
+}
+```
+
+---
+
+### Remove Member
+
+```
+DELETE /api/orgs/:orgId/members/:userId
+```
+
+Requires `ADMIN` or `OWNER` role. The org's last `OWNER` cannot be removed.

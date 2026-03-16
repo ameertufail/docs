@@ -1,0 +1,152 @@
+---
+title: "Datasets"
+description: "Create datasets and manage test case items for eval runs."
+---
+
+## Endpoints
+
+### Create Dataset
+
+```
+POST /api/projects/:projectId/datasets
+```
+
+**Body:**
+```json
+{
+  "name": "invoice-golden-set",
+  "type": "EXTRACTION",
+  "description": "50 real-world invoices with verified expected outputs"
+}
+```
+
+**Dataset types:**
+
+| Type | Use Case |
+|------|----------|
+| `GENERATION` | Open-ended text generation, summaries, creative content |
+| `CLASSIFICATION` | Categorization, labeling, routing tasks |
+| `EXTRACTION` | Structured data extraction from unstructured text |
+| `CHAT` | Multi-turn conversation testing |
+
+---
+
+### List Datasets
+
+```
+GET /api/projects/:projectId/datasets
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "datasets": [
+      {
+        "id": "01HXD...",
+        "name": "invoice-golden-set",
+        "type": "EXTRACTION",
+        "itemCount": 50,
+        "createdAt": "2026-03-01T10:00:00Z"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### Get Dataset + Items
+
+```
+GET /api/datasets/:datasetId?limit=50&cursor=01HXI...
+```
+
+Returns dataset details with paginated items.
+
+---
+
+### Add Item
+
+```
+POST /api/datasets/:datasetId/items
+```
+
+**Body:**
+```json
+{
+  "input": {
+    "invoice_text": "Invoice #1234\nVendor: Acme Corp\nDate: 2024-03-15\nTotal: $1,250.00 USD"
+  },
+  "expectedOutput": {
+    "vendor": "Acme Corp",
+    "total": 1250.00,
+    "date": "2024-03-15",
+    "currency": "USD"
+  },
+  "rubric": "Check that all four fields are present and correctly typed.",
+  "tags": ["usd", "simple", "single-vendor"]
+}
+```
+
+**Validation rules:**
+- `input` must be a valid JSON object (required)
+- `expectedOutput` must be valid JSON if provided
+- `rubric` must be a string if provided
+- `tags` must be an array of strings if provided
+
+---
+
+### Bulk Import via JSONL
+
+```
+POST /api/datasets/:datasetId/items/bulk
+Content-Type: multipart/form-data
+```
+
+Upload a `.jsonl` file where each line is a JSON object matching the item schema above.
+
+**JSONL example:**
+```jsonl
+{"input": {"invoice_text": "Invoice #1234..."}, "expectedOutput": {"vendor": "Acme Corp", "total": 1250}}
+{"input": {"invoice_text": "Bill To: TechStart..."}, "expectedOutput": {"vendor": "Cloud Services Ltd", "total": 890.5}}
+```
+
+**Response:**
+```json
+{
+  "data": {
+    "imported": 47,
+    "failed": 3,
+    "errors": [
+      { "line": 12, "error": "invalid JSON" },
+      { "line": 28, "error": "missing 'input' field" },
+      { "line": 45, "error": "'input' must be an object" }
+    ]
+  }
+}
+```
+
+<Tip>
+  Invalid lines are skipped and valid lines are imported. The endpoint never fails the whole batch because of a few bad lines.
+</Tip>
+
+---
+
+### Edit Item
+
+```
+PATCH /api/dataset-items/:itemId
+```
+
+All fields are optional — only include what you want to change.
+
+---
+
+### Delete Item
+
+```
+DELETE /api/dataset-items/:itemId
+```
+
+Updates `datasets.item_count` automatically.

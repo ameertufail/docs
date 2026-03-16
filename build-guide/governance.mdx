@@ -1,0 +1,104 @@
+---
+title: "Delivery Governance"
+description: "Branch strategy, PR review checklist, definition of done, and documentation writeback rules."
+---
+
+## Branch Strategy
+
+- `main` stays protected and always deployable.
+- Use short-lived task branches named `task/<phase>-<task>-<slug>`.
+  - Example: `task/0-1-init-monorepo`, `task/1-3-eval-runner`
+- Keep one implementation task per branch. Split expanded scope into follow-up tasks.
+- Squash merge into `main` so each merged task maps to one reviewable changeset.
+
+---
+
+## PR Review Checklist
+
+Every PR must satisfy all of these before merging:
+
+<Check>Task scope matches the implementation plan instruction and listed Read Context docs.</Check>
+<Check>Verification evidence is attached for changed behavior (tests / lint / typecheck / manual checks).</Check>
+<Check>If the task closes a phase, a passing `pnpm format:check` from the repo root is included in verification evidence.</Check>
+<Check>Phase 1 guardrails remain intact (browser-first eval model and security baseline).</Check>
+<Check>Shared contract changes bump `SHARED_CONTRACT_VERSION`, update the catalog snapshot, and describe compatibility impact.</Check>
+<Check>Documentation writeback is complete across plan and context trackers.</Check>
+<Check>Follow-up risks or deferred work are explicitly listed.</Check>
+
+---
+
+## Definition of Done
+
+A task is done when:
+
+1. Task acceptance criteria are satisfied.
+2. Code and documentation are consistent — no stale "Pending" task summaries for completed work.
+3. Required quality gates pass for changed scope (or have explicit documented rationale if not applicable).
+4. Any handoff that completes a phase includes a final passing `pnpm format:check`.
+5. Deferred work is tracked as new tasks, not hidden as untracked TODOs.
+
+---
+
+## Documentation Writeback Rules
+
+These are **mandatory** for every merged task:
+
+<Steps>
+  <Step title="Mark the completed task">
+    Mark `[x]` and replace `Completion Summary: Pending.` in `IMPLEMENTATION_MULTIPHASE_PLAN.md`.
+  </Step>
+  <Step title="Update project overview">
+    Update `DOCS/PROJECT_OVERVIEW.md` status fields and relevant phase checklist items.
+  </Step>
+  <Step title="Add completion notes">
+    Add one completion note line to every file listed in that task's Read Context.
+    Format: `YYYY-MM-DD - Task X.Y - one-line summary`
+    Keep newest notes at the top.
+  </Step>
+  <Step title="No stale TODOs">
+    Treat missing writeback as **merge-blocking**. Deferred work must be tracked as new tasks.
+  </Step>
+</Steps>
+
+---
+
+## Shared Contract Versioning
+
+When any change touches `packages/shared` (types, schemas, constants), you must:
+
+1. Bump `SHARED_CONTRACT_VERSION` in `packages/shared/src/constants.ts`
+2. Update the shared contract catalog snapshot
+3. Describe the compatibility impact in the PR (breaking / non-breaking / additive)
+
+<Warning>
+  Breaking shared contract changes require explicit approval in the PR. Document which consuming apps need updates and include those changes in the same PR.
+</Warning>
+
+---
+
+## CI Pipeline
+
+GitHub Actions runs on every PR to `main`:
+
+```yaml
+# .github/workflows/ci.yml
+name: CI / validate
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v3
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm build
+      - run: pnpm format:check
+```
+
+The `CI / validate` check is required to pass before any PR can be merged.

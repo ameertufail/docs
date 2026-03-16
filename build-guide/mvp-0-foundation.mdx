@@ -1,0 +1,200 @@
+---
+title: "MVP 0 — Foundation"
+description: "Shippable skeleton: auth, org/project isolation, prompt versioning, and deployment."
+---
+
+**Goal:** A user can sign in with GitHub, create an org and project, create prompt versions, and see diffs. The UI looks like a real product. Every action is audited.
+
+<Tip>
+  Ship tweet: _"Day X: PromptOps Studio now has auth, org/project isolation, prompt versioning with diffs, and an audit log. Building in public 🚀"_
+</Tip>
+
+---
+
+## Iteration 0.1: Repo + Dev Environment
+
+Set up the monorepo, install dependencies, verify everything runs locally.
+
+<Steps>
+  <Step title="Task 0.1.1 — Initialize monorepo">
+    Create the root repo with pnpm workspaces and Turborepo.
+
+    ```bash
+    mkdir promptops-studio && cd promptops-studio
+    pnpm init
+    pnpm add -D turbo -w
+    ```
+
+    Create `pnpm-workspace.yaml`:
+    ```yaml
+    packages:
+      - "apps/*"
+      - "packages/*"
+    ```
+
+    **Done when:** `pnpm install` runs without errors.
+  </Step>
+  <Step title="Task 0.1.2 — Scaffold Next.js frontend">
+    ```bash
+    mkdir -p apps/web && cd apps/web
+    pnpm create next-app . --typescript --tailwind --eslint --app --src-dir --import-alias "@/*"
+    pnpm dlx shadcn@latest init
+    pnpm dlx shadcn@latest add button card input label dialog dropdown-menu table tabs badge separator sheet
+    ```
+
+    **Done when:** `localhost:3000` shows the placeholder page.
+  </Step>
+  <Step title="Task 0.1.3 — Scaffold Cloudflare Workers backend">
+    ```bash
+    mkdir -p apps/api && cd apps/api
+    pnpm add hono
+    pnpm add -D wrangler @cloudflare/workers-types typescript
+    ```
+
+    Create `src/index.ts`:
+    ```typescript
+    import { Hono } from "hono";
+    import { cors } from "hono/cors";
+
+    const app = new Hono();
+    app.use("/*", cors());
+    app.get("/api/health", (c) =>
+      c.json({ status: "ok", timestamp: new Date().toISOString() })
+    );
+    export default app;
+    ```
+
+    **Done when:** `curl localhost:8787/api/health` returns `{"status":"ok"}`.
+  </Step>
+  <Step title="Task 0.1.4 — Create shared types package">
+    ```bash
+    mkdir -p packages/shared/src && cd packages/shared
+    pnpm add zod
+    ```
+
+    Define core types in `src/types.ts`:
+    ```typescript
+    export type UserRole = "OWNER" | "ADMIN" | "MEMBER" | "VIEWER";
+    export type PromptVersionStatus = "DRAFT" | "RELEASED" | "ARCHIVED";
+    export type EvalRunStatus = "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
+    export type Verdict = "IMPROVED" | "REGRESSED" | "SAME" | "UNKNOWN";
+    ```
+
+    **Done when:** Both `apps/web` and `apps/api` can import from `@promptops/shared`.
+  </Step>
+  <Step title="Task 0.1.5 — Create D1 database with schema">
+    ```bash
+    pnpm wrangler d1 create promptops-db
+    pnpm wrangler d1 execute promptops-db \
+      --file=./src/db/migrations/001_core.sql \
+      --local
+    ```
+
+    **Done when:** Schema is applied and a test insert/select works on local D1.
+  </Step>
+</Steps>
+
+---
+
+## Iteration 0.2: Auth + Multi-tenancy
+
+GitHub OAuth, JWT session management, org creation, and RBAC enforcement.
+
+<Steps>
+  <Step title="Task 0.2.1 — GitHub OAuth backend">
+    Implement `GET /api/auth/github` (redirect) and `GET /api/auth/callback` (exchange code → JWT). Store user in D1 on first login.
+  </Step>
+  <Step title="Task 0.2.2 — JWT auth middleware">
+    Create `apps/api/src/middleware/auth.ts`. Every protected route verifies the `Authorization: Bearer <jwt>` header. Return `401` on invalid or missing token.
+  </Step>
+  <Step title="Task 0.2.3 — RBAC middleware">
+    Create `apps/api/src/middleware/rbac.ts`. Checks `org_members.role` against required role for each route. Return `403` for insufficient permissions.
+  </Step>
+  <Step title="Task 0.2.4 — Org CRUD">
+    `POST /api/orgs` → create org, auto-add creator as OWNER.
+    `GET /api/orgs` → list user's orgs.
+  </Step>
+  <Step title="Task 0.2.5 — Auth UI">
+    Login page with "Sign in with GitHub" button. Redirect to dashboard after successful auth. Store JWT in `httpOnly` cookie or `localStorage`.
+  </Step>
+</Steps>
+
+---
+
+## Iteration 0.3: Prompt CRUD + Versioning
+
+The core of MVP 0 — treating prompts like code.
+
+<Steps>
+  <Step title="Task 0.3.1 — Prompt + version backend">
+    `POST /api/projects/:projectId/prompts` → create prompt.
+    `POST /api/prompts/:promptId/versions` → create version (immutable content).
+    Versions auto-increment `version_number` per prompt.
+  </Step>
+  <Step title="Task 0.3.2 — Prompt list + detail UI">
+    Table of prompts with name, description, version count, and released version badge. Click → prompt detail page with version history.
+  </Step>
+  <Step title="Task 0.3.3 — Prompt editor">
+    Rich text editor (Monaco or CodeMirror) supporting `{{variable}}` syntax highlighting. Model config panel (provider, model, temperature, max_tokens). Save creates a new version — never edits in place.
+  </Step>
+  <Step title="Task 0.3.4 — Variable detection">
+    Parse `{{variableName}}` patterns from prompt content. Display detected variables as chips. Show warning if a variable was in v2 but removed in v3.
+  </Step>
+  <Step title="Task 0.3.5 — Diff viewer">
+    Side-by-side diff between any two versions. Green for additions, red for removals, unified diff format. Summary: "X lines added, Y lines removed".
+  </Step>
+  <Step title="Task 0.3.6 — Release toggle UI">
+    "Release" button on DRAFT versions. Confirmation: "This will release v3 and archive v2." Badge changes to green RELEASED. Only one version can be RELEASED per prompt at a time.
+  </Step>
+</Steps>
+
+<Tip>
+  Ship tweet after 0.3: _"PromptOps Studio now has a full prompt editor with `{{variable}}` templating, immutable versioning, visual diffs, and release management. Treating prompts like code. ✨"_
+</Tip>
+
+---
+
+## Iteration 0.4: Basic UI Shell + Deploy
+
+Make it feel like a real product and ship to production.
+
+<Steps>
+  <Step title="Task 0.4.1 — App layout + navigation">
+    Sidebar with: Prompts, Datasets (placeholder), Evals (placeholder), Runs (placeholder), Settings. Org switcher. Breadcrumb bar. Collapses to icons on mobile.
+  </Step>
+  <Step title="Task 0.4.2 — Empty states">
+    Every section shows a meaningful empty state with description + CTA button when there's no data.
+  </Step>
+  <Step title="Task 0.4.3 — Deploy frontend to Vercel">
+    Connect GitHub repo to Vercel. Root directory: `apps/web`. Add env vars. Deploy.
+  </Step>
+  <Step title="Task 0.4.4 — Deploy backend to Cloudflare">
+    ```bash
+    pnpm wrangler d1 create promptops-db          # Create production DB
+    pnpm wrangler r2 bucket create promptops-storage
+    pnpm wrangler secret put GITHUB_CLIENT_ID
+    pnpm wrangler secret put GITHUB_CLIENT_SECRET
+    pnpm wrangler secret put JWT_SECRET
+    pnpm wrangler deploy
+    ```
+  </Step>
+</Steps>
+
+---
+
+## 🚢 MVP 0 Ship Checkpoint
+
+Post this when MVP 0 is live:
+
+> 🚀 Shipped MVP 0 of PromptOps Studio — an open-source LLMOps platform.
+>
+> What it does today:
+> - GitHub auth with multi-tenant orgs + RBAC
+> - Prompt versioning with `{{variable}}` templates
+> - Visual diffs between versions
+> - Release management (promote/rollback)
+> - Full audit trail
+>
+> Live at [URL]. Next up: datasets + eval engine.
+>
+> Building in public — star the repo if this interests you ⭐

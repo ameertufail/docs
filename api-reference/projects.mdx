@@ -1,0 +1,109 @@
+---
+title: "Projects"
+description: "Create and manage projects within an organization."
+---
+
+Projects are the primary namespace for prompts, datasets, eval configs, and runs. A project belongs to exactly one org.
+
+## Endpoints
+
+### Create Project
+
+```
+POST /api/orgs/:orgId/projects
+```
+
+Requires `MEMBER`, `ADMIN`, or `OWNER` role.
+
+**Body:**
+```json
+{
+  "name": "Invoice Processing",
+  "slug": "invoice-processing",
+  "description": "LLM pipeline for extracting structured data from invoices"
+}
+```
+
+**Response:** `201 Created`
+```json
+{
+  "data": {
+    "id": "01HXP...",
+    "orgId": "01HXZ...",
+    "name": "Invoice Processing",
+    "slug": "invoice-processing",
+    "description": "LLM pipeline for extracting structured data from invoices",
+    "createdAt": "2026-03-01T10:00:00Z"
+  }
+}
+```
+
+---
+
+### List Projects
+
+```
+GET /api/orgs/:orgId/projects
+```
+
+Returns all projects in the org. Accessible to any org member.
+
+---
+
+### Get Project Overview
+
+```
+GET /api/projects/:projectId
+```
+
+Returns project details and a stats summary.
+
+**Response:**
+```json
+{
+  "data": {
+    "id": "01HXP...",
+    "name": "Invoice Processing",
+    "slug": "invoice-processing",
+    "stats": {
+      "promptCount": 4,
+      "datasetCount": 2,
+      "evalConfigCount": 3,
+      "recentRunCount": 142,
+      "lastEvalRunAt": "2026-03-10T14:23:00Z"
+    }
+  }
+}
+```
+
+---
+
+### Update Project
+
+```
+PATCH /api/projects/:projectId
+```
+
+Requires `ADMIN` or `OWNER` role.
+
+**Body (all fields optional):**
+```json
+{
+  "name": "Invoice Processing v2",
+  "description": "Updated description"
+}
+```
+
+<Note>
+  Project `slug` cannot be changed after creation — it's used in URLs and would break existing links.
+</Note>
+
+---
+
+### Delete Project
+
+```
+DELETE /api/projects/:projectId
+```
+
+Requires `OWNER` role. Cascades to delete all prompts, datasets, eval configs, runs, and API keys in the project. **This is irreversible.**

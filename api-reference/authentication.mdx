@@ -1,0 +1,103 @@
+---
+title: "Authentication"
+description: "GitHub OAuth flow and JWT session management."
+---
+
+## Auth Flow
+
+```
+1. User clicks "Sign in with GitHub"
+2. Frontend redirects to GitHub OAuth authorize URL
+3. GitHub redirects back with ?code=...
+4. Frontend sends code to POST /api/auth/callback
+5. Backend exchanges code for GitHub access token
+6. Backend creates/updates user in D1
+7. Backend issues JWT (signed with Worker secret)
+8. Frontend stores JWT, sends as Authorization: Bearer <jwt>
+```
+
+---
+
+## Endpoints
+
+### Initiate OAuth
+
+<ParamField path="GET /api/auth/github" type="endpoint">
+  Redirects the browser to GitHub's OAuth authorization URL.
+  No parameters required — the GitHub Client ID and callback URL are configured server-side.
+</ParamField>
+
+### Exchange Code for JWT
+
+<ParamField path="GET /api/auth/callback" type="endpoint">
+  Exchanges the GitHub OAuth code for a JWT. Called automatically after GitHub redirects back.
+</ParamField>
+
+**Query parameters:**
+
+| Name | Type | Description |
+|------|------|-------------|
+| `code` | string | The OAuth code from GitHub |
+| `state` | string | CSRF token (must match the value set in the initial redirect) |
+
+**Response:**
+```json
+{
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIs...",
+    "user": {
+      "id": "01HXY...",
+      "name": "Jane Smith",
+      "email": "jane@example.com",
+      "avatarUrl": "https://avatars.githubusercontent.com/..."
+    }
+  }
+}
+```
+
+### Get Current User
+
+<ParamField path="GET /api/auth/me" type="endpoint">
+  Returns the authenticated user's profile.
+  Requires `Authorization: Bearer <jwt>` header.
+</ParamField>
+
+**Response:**
+```json
+{
+  "data": {
+    "id": "01HXY...",
+    "name": "Jane Smith",
+    "email": "jane@example.com",
+    "avatarUrl": "https://avatars.githubusercontent.com/...",
+    "orgs": [
+      { "id": "01HXZ...", "name": "My Team", "slug": "my-team", "role": "OWNER" }
+    ]
+  }
+}
+```
+
+### Logout
+
+<ParamField path="POST /api/auth/logout" type="endpoint">
+  Invalidates the current session. The JWT is added to a denylist until expiry.
+</ParamField>
+
+---
+
+## JWT Details
+
+JWTs are signed with `HS256` using the `JWT_SECRET` Worker secret.
+
+**Payload:**
+```json
+{
+  "sub": "01HXY...",       // user.id
+  "iat": 1709123456,       // issued at
+  "exp": 1709728256        // expires in 7 days
+}
+```
+
+<Warning>
+  JWTs are not rotated automatically. When a user logs out, the token is denylisted in D1 until its `exp`. This means logout takes effect immediately.
+</Warning>

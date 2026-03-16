@@ -1,0 +1,203 @@
+---
+title: "MVP 1 — Core Eval Platform"
+description: "Full eval loop: dataset manager, eval config builder, browser-orchestrated runner, and report."
+---
+
+**Goal:** A user can upload a dataset, configure evaluation rules, run a side-by-side comparison of two prompt versions, and get a clear report showing pass/fail, regressions, and judge scores.
+
+<Tip>
+  Ship tweet: _"PromptOps Studio can now evaluate your prompts against datasets with deterministic checks + LLM-as-judge scoring. See exactly which cases improved or regressed."_
+</Tip>
+
+---
+
+## Iteration 1.1: Dataset Manager
+
+Datasets are collections of test cases ("golden sets"). Each item has input variables, optional expected output, and optional rubric.
+
+<Steps>
+  <Step title="Task 1.1.1 — Dataset CRUD backend">
+    - `POST /api/projects/:projectId/datasets` → create dataset
+    - `GET /api/projects/:projectId/datasets` → list with `item_count`
+    - `GET /api/datasets/:datasetId` → details + paginated items (cursor-based, limit 50)
+    - `PATCH /api/datasets/:datasetId` → update name/description
+    - `DELETE /api/datasets/:datasetId` → cascade delete items
+    - Audit events on all mutations
+
+    **Done when:** Dataset CRUD fully functional via API.
+  </Step>
+  <Step title="Task 1.1.2 — Dataset item CRUD backend">
+    Validate all items: `input` must be valid JSON object, `expected_output` must be valid JSON if provided, `rubric` must be a string.
+    
+    **Done when:** Can add/edit/delete items with proper validation.
+  </Step>
+  <Step title="Task 1.1.3 — JSONL bulk import">
+    `POST /api/datasets/:datasetId/items/bulk` — multipart upload. Parse line by line. Collect per-line errors. Batch insert valid items (20 per D1 transaction).
+
+    Response format:
+    ```json
+    {
+      "imported": 47,
+      "failed": 3,
+      "errors": [
+        { "line": 12, "error": "invalid JSON" },
+        { "line": 28, "error": "missing 'input' field" }
+      ]
+    }
+    ```
+
+    **Done when:** A 50-line JSONL file imports valid items and reports errors clearly.
+  </Step>
+  <Step title="Task 1.1.4 — Dataset UI">
+    - Dataset list page with table (name, type badge, item count, created date)
+    - Dataset detail page with paginated items table
+    - Add item slide-over panel with JSON editors
+    - Inline item edit + delete
+    - JSONL upload UI with import results display
+    - Provide a sample JSONL template for download
+  </Step>
+</Steps>
+
+<Tip>
+  Ship tweet after 1.1: _"Dataset manager shipped! Import your test cases via JSONL, tag them, edit inline. The foundation for structured prompt evaluation. 📊"_
+</Tip>
+
+---
+
+## Iteration 1.2: Eval Config Builder
+
+An eval config defines HOW to evaluate — which dataset, what checks to run, what thresholds to set, and whether to use LLM-as-judge.
+
+<Steps>
+  <Step title="Task 1.2.1 — Eval config CRUD backend">
+    - `POST /api/projects/:projectId/eval-configs` → create config
+    - `GET /api/projects/:projectId/eval-configs` → list configs
+    - `PATCH /api/eval-configs/:configId` → update rules
+    - Validate the rules JSON against the expected schema
+
+    **Done when:** Eval config CRUD works via API.
+  </Step>
+  <Step title="Task 1.2.2 — Eval config UI">
+    A step-by-step form that produces the rules JSON:
+
+    1. **Dataset selection** — dropdown of project datasets
+    2. **Checks tab** — toggles for `json_valid`, `json_schema` editor, `regex_match` input, `exact_match` toggle
+    3. **Guardrails tab** — toggles for `pii_detection` and `prompt_injection_check`
+    4. **Judge tab** — enable/disable, provider selector, model input, rubric textarea, temperature slider
+    5. **Thresholds tab** — min judge score, all checks must pass toggle, no guardrail failures toggle
+    6. **Review** — JSON preview of the final config
+
+    **Done when:** User can create and edit a full eval config through the UI.
+  </Step>
+</Steps>
+
+---
+
+## Iteration 1.3: Eval Runner (Browser-Orchestrated)
+
+The eval runner is the core engine. It lives in the browser.
+
+<Steps>
+  <Step title="Task 1.3.1 — Eval run backend">
+    - `POST /api/eval-runs` → create run (status = QUEUED)
+    - `PATCH /api/eval-runs/:runId/progress` → update progress + partial results (called by browser)
+    - `PATCH /api/eval-runs/:runId/complete` → finalize run, compute summary
+    - `GET /api/eval-runs/:runId` → current status + summary
+
+    **Done when:** Run lifecycle endpoints handle browser-submitted results.
+  </Step>
+  <Step title="Task 1.3.2 — Browser orchestrator (core engine)">
+    This is the most complex task. The orchestrator runs in a Web Worker.
+
+    For each dataset item:
+    1. Render base prompt template with item's input variables
+    2. Call LLM provider with base prompt (user's BYOK key, model config)
+    3. Run checks + guardrails on base output
+    4. Run judge scoring on base output (if enabled)
+    5. Repeat for candidate version
+    6. Compute delta + verdict
+    7. POST item result to backend
+    8. Update progress bar
+
+    Handle gracefully: retries (3x on rate limit / network error), resume (skip already-completed items if run is restarted), concurrent execution (up to 3 items in parallel).
+  </Step>
+  <Step title="Task 1.3.3 — Run initiation UI">
+    "New Eval Run" page:
+    - Select eval config
+    - Select base version
+    - Select candidate version
+    - Show estimated runtime
+    - "Start Run" button → redirects to live run page
+  </Step>
+  <Step title="Task 1.3.4 — Live run progress UI">
+    - Progress bar: "23 / 50 items"
+    - Live item feed: each completed item shows verdict badge (IMPROVED / REGRESSED / SAME)
+    - Running stats: pass rate, avg judge score
+    - "Cancel" button
+    - Auto-redirect to report when complete
+  </Step>
+</Steps>
+
+---
+
+## Iteration 1.4: Eval Report Page
+
+<Steps>
+  <Step title="Task 1.4.1 — Report backend">
+    `GET /api/eval-runs/:runId/items` → paginated items with filters (`?verdict=REGRESSED&page=1`).
+
+    Summary is pre-computed and stored in `eval_runs.summary`:
+    ```json
+    {
+      "total": 50,
+      "improved": 12,
+      "regressed": 3,
+      "same": 35,
+      "passRate": 0.94,
+      "avgJudgeScoreBase": 3.8,
+      "avgJudgeScoreCandidate": 4.2,
+      "avgLatencyBase": 1200,
+      "avgLatencyCandidate": 980
+    }
+    ```
+  </Step>
+  <Step title="Task 1.4.2 — Report UI">
+    - Summary header: verdict counts, pass rate, score delta, latency delta
+    - Overall verdict banner: IMPROVED / REGRESSED / SAME
+    - Item table with filters (show only REGRESSED, IMPROVED, or all)
+    - Click item → expand to see: input, base output, candidate output, metrics, judge rationale
+    - Export to CSV button
+  </Step>
+</Steps>
+
+---
+
+## Iteration 1.5: Guardrails Pipeline
+
+<Steps>
+  <Step title="Task 1.5.1 — PII detection">
+    Regex patterns for: emails, phone numbers (US + international), SSNs, credit card numbers, IP addresses. Returns: `{ detected: true, types: ["email", "phone"] }`.
+  </Step>
+  <Step title="Task 1.5.2 — Prompt injection detection">
+    Heuristic checks for common injection patterns: "ignore previous instructions", "disregard", "you are now", role-switching keywords. Returns confidence score.
+  </Step>
+  <Step title="Task 1.5.3 — Guardrail UI integration">
+    In the eval report, guardrail failures show as red badges on affected items. Summary section includes: "X items had PII detected, Y items had potential injection".
+  </Step>
+</Steps>
+
+---
+
+## 🚢 MVP 1 Ship Checkpoint
+
+Post this when MVP 1 is live:
+
+> 📊 MVP 1 of PromptOps Studio is live.
+>
+> Full eval loop, now available:
+> - Upload your golden dataset (or build one manually)
+> - Configure checks: JSON schema, PII detection, LLM-as-judge
+> - Run base vs candidate comparison — all in the browser with your own API key
+> - See a full report: verdicts, regressions, score deltas per item
+>
+> This is the core of what we're building. Try it at [URL] ⚡

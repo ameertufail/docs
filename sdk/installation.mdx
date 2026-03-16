@@ -1,0 +1,101 @@
+---
+title: "Installation & Configuration"
+description: "Install the SDK and configure it with your project API key."
+---
+
+## Install
+
+<CodeGroup>
+```bash npm
+npm install @promptops/sdk
+```
+
+```bash pnpm
+pnpm add @promptops/sdk
+```
+
+```bash yarn
+yarn add @promptops/sdk
+```
+</CodeGroup>
+
+## Get Your API Key
+
+1. Go to your project in PromptOps Studio
+2. Navigate to **Settings → API Keys**
+3. Click **Create New Key**
+4. Copy the key — it's shown only once
+
+## Configure the Client
+
+```typescript
+import { PromptOps } from "@promptops/sdk";
+
+const client = new PromptOps({
+  apiKey: process.env.PROMPTOPS_API_KEY,
+});
+```
+
+### Configuration Options
+
+<ParamField body="apiKey" type="string" required>
+  Your project API key. Starts with `po_sk_`. Keep this in an environment variable — never commit it to source control.
+</ParamField>
+
+<ParamField body="baseUrl" type="string">
+  The URL of your PromptOps API. Defaults to the hosted version. Override this if you are self-hosting.
+  
+  Example: `https://promptops-api.your-subdomain.workers.dev`
+</ParamField>
+
+<ParamField body="timeout" type="number">
+  Request timeout in milliseconds. Default: `5000` (5 seconds).
+</ParamField>
+
+<ParamField body="retries" type="number">
+  Number of retry attempts on network errors. Default: `2`.
+</ParamField>
+
+<ParamField body="onError" type="function">
+  Optional error handler called when a log request fails after all retries. Default: `console.error`.
+  
+  ```typescript
+  new PromptOps({
+    apiKey: process.env.PROMPTOPS_API_KEY,
+    onError: (err) => Sentry.captureException(err),
+  });
+  ```
+</ParamField>
+
+## Environment Variables
+
+```bash
+# .env
+PROMPTOPS_API_KEY=po_sk_ab12cd34ef56gh78
+```
+
+```typescript
+// Works in Node.js, Next.js, etc.
+const client = new PromptOps({
+  apiKey: process.env.PROMPTOPS_API_KEY!,
+});
+```
+
+<Warning>
+  Never expose your API key in client-side browser code. The SDK is designed for server-side use only.
+</Warning>
+
+## Verify the Connection
+
+```typescript
+import { PromptOps } from "@promptops/sdk";
+
+const client = new PromptOps({ apiKey: process.env.PROMPTOPS_API_KEY! });
+
+async function main() {
+  const ok = await client.ping();
+  console.log("PromptOps connected:", ok); // true
+}
+
+main();
+```

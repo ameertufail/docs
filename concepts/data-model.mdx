@@ -1,0 +1,261 @@
+---
+title: "Data Model"
+description: "Complete D1 schema, entity relationships, and the eval rules JSON structure."
+---
+
+## Entity Relationship Overview
+
+```
+users ──┐
+        ├── org_members ──── orgs
+        │                      │
+        │                      ├── projects
+        │                      │     │
+        │                      │     ├── prompts ── prompt_versions
+        │                      │     ├── datasets ── dataset_items
+        │                      │     ├── eval_configs
+        │                      │     │     └── eval_runs ── eval_run_items
+        │                      │     ├── runs (SDK logs)
+        │                      │     └── api_keys
+        │                      │
+        │                      └── audit_events
+        │
+        └── provider_keys (encrypted, per project)
+```
+
+---
+
+## Core Tables
+
+### users
+
+Populated from GitHub OAuth.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | TEXT (ULID) | Primary key |
+| `github_id` | INTEGER | Unique, from GitHub |
+| `email` | TEXT | From GitHub profile |
+| `name` | TEXT | Display name |
+| `avatar_url` | TEXT | GitHub avatar |
+| `created_at` | TEXT | ISO-8601 |
+
+### orgs
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | TEXT (ULID) | Primary key |
+| `name` | TEXT | Display name |
+| `slug` | TEXT | URL-safe, unique (e.g. `my-team`) |
+| `plan` | TEXT | `FREE \| PRO \| TEAM` |
+| `created_at` | TEXT | ISO-8601 |
+
+### org_members
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `org_id` | TEXT | FK → orgs |
+| `user_id` | TEXT | FK → users |
+| `role` | TEXT | `OWNER \| ADMIN \| MEMBER \| VIEWER` |
+
+### projects
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | TEXT (ULID) | Primary key |
+| `org_id` | TEXT | FK → orgs |
+| `name` | TEXT | Display name |
+| `slug` | TEXT | Unique within org |
+| `description` | TEXT | Optional |
+
+---
+
+## Prompts & Versioning
+
+### prompts
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | TEXT (ULID) | Primary key |
+| `project_id` | TEXT | FK → projects |
+| `name` | TEXT | e.g. `invoice-extractor` |
+| `description` | TEXT | Optional |
+| `created_by` | TEXT | FK → users |
+
+### prompt_versions
+
+Versions are **immutable** once created. Content is never edited — only new versions are created.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | TEXT (ULID) | Primary key |
+| `prompt_id` | TEXT | FK → prompts |
+| `version_number` | INTEGER | Auto-incremented per prompt |
+| `content` | TEXT | The full prompt template with `{{variables}}` |
+| `variables_schema` | TEXT | JSON: expected variables |
+| `model_config` | TEXT | JSON: `{ provider, model, temperature, max_tokens }` |
+| `status` | TEXT | `DRAFT \| RELEASED \| ARCHIVED` |
+| `release_note` | TEXT | Optional change summary |
+| `created_by` | TEXT | FK → users |
+| `created_at` | TEXT | ISO-8601 |
+
+---
+
+## Datasets & Items
+
+### datasets
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | TEXT (ULID) | Primary key |
+| `project_id` | TEXT | FK → projects |
+| `name` | TEXT | e.g. `invoice-golden-set` |
+| `type` | TEXT | `GENERATION \| CLASSIFICATION \| EXTRACTION \| CHAT` |
+| `item_count` | INTEGER | Denormalized count |
+
+### dataset_items
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | TEXT (ULID) | Primary key |
+| `dataset_id` | TEXT | FK → datasets |
+| `input` | TEXT | JSON: variables to fill the prompt |
+| `expected_output` | TEXT | JSON: ground truth (optional) |
+| `rubric` | TEXT | Freetext scoring rubric for judge (optional) |
+| `tags` | TEXT | JSON array of strings |
+| `sort_order` | INTEGER | For stable ordering |
+
+---
+
+## Eval System
+
+### eval_configs
+
+Stores the reusable evaluation definition as a JSON rules blob.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | TEXT (ULID) | Primary key |
+| `project_id` | TEXT | FK → projects |
+| `name` | TEXT | e.g. `invoice-strict-eval` |
+| `dataset_id` | TEXT | FK → datasets |
+| `rules` | TEXT | JSON: full eval config (see below) |
+
+### eval_runs
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | TEXT (ULID) | Primary key |
+| `eval_config_id` | TEXT | FK → eval_configs |
+| `base_version_id` | TEXT | FK → prompt_versions |
+| `candidate_version_id` | TEXT | FK → prompt_versions |
+| `status` | TEXT | `QUEUED \| RUNNING \| COMPLETED \| FAILED` |
+| `progress_current` | INTEGER | Items completed so far |
+| `progress_total` | INTEGER | Total items to process |
+| `summary` | TEXT | JSON: computed after completion |
+| `finished_at` | TEXT | ISO-8601, nullable |
+
+### eval_run_items
+
+Per-item results for each eval run.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `base_output` | TEXT | LLM output for base version |
+| `candidate_output` | TEXT | LLM output for candidate version |
+| `base_metrics` | TEXT | JSON: `{ latencyMs, guardrails, checks, judgeScore }` |
+| `candidate_metrics` | TEXT | JSON: same structure |
+| `delta` | TEXT | JSON: `{ scoreDelta, latencyDelta, ... }` |
+| `verdict` | TEXT | `IMPROVED \| REGRESSED \| SAME \| UNKNOWN` |
+
+---
+
+## Eval Config Rules Schema
+
+The `rules` column in `eval_configs` stores this JSON structure:
+
+```jsonc
+{
+  // Deterministic checks run on every output
+  "checks": {
+    "json_valid": true,
+    "json_schema": {
+      "type": "object",
+      "properties": {
+        "vendor": { "type": "string" },
+        "total": { "type": "number" }
+      },
+      "required": ["vendor", "total"]
+    },
+    "regex_match": null,
+    "exact_match": false
+  },
+
+  // Guardrails (run independently of eval checks)
+  "guardrails": {
+    "pii_detection": true,
+    "prompt_injection_check": true
+  },
+
+  // LLM-as-judge configuration
+  "judge": {
+    "enabled": true,
+    "provider": "user_key",       // "user_key" | "workers_ai"
+    "model": "gpt-4o-mini",
+    "rubric": "Rate on accuracy (1-5) and format correctness (1-5).",
+    "scale_min": 1,
+    "scale_max": 5,
+    "temperature": 0.1
+  },
+
+  // Pass/fail thresholds
+  "thresholds": {
+    "min_judge_score": 4,
+    "all_checks_pass": true,
+    "no_guardrail_failures": true
+  },
+
+  // Comparison settings
+  "comparison": {
+    "delta_threshold": 0.5,       // Score diff >= 0.5 = IMPROVED/REGRESSED
+    "sample_size": null            // null = run all items
+  }
+}
+```
+
+---
+
+## Production Runs & SDK
+
+### runs
+
+Logged from the SDK or UI playground.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | TEXT (ULID) | Primary key |
+| `project_id` | TEXT | FK → projects |
+| `prompt_version_id` | TEXT | FK → prompt_versions (nullable) |
+| `input` | TEXT | JSON: the input variables |
+| `output` | TEXT | The LLM output |
+| `metrics` | TEXT | JSON: `{ latencyMs, tokenCount, costEstimate, guardrails }` |
+| `source` | TEXT | `SDK \| UI \| EVAL` |
+
+### api_keys
+
+Project-scoped keys for SDK authentication.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `key_hash` | TEXT | SHA-256 hash — plaintext never stored |
+| `key_prefix` | TEXT | First 8 chars for identification: `po_sk_ab12...` |
+
+### provider_keys
+
+BYOK encrypted storage.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `provider` | TEXT | `OPENAI \| ANTHROPIC \| GROQ \| TOGETHER \| CUSTOM` |
+| `encrypted_key` | TEXT | AES-256-GCM encrypted |
+| `key_hint` | TEXT | Last 3 chars for display: `...abc` |

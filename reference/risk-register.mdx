@@ -1,0 +1,45 @@
+---
+title: "Risk Register"
+description: "Known risks, likelihood, and mitigations."
+---
+
+| Risk | Impact | Likelihood | Mitigation |
+|------|--------|------------|------------|
+| **Eval runner too complex** | Delays MVP 1 by weeks | Medium | Client-side execution simplifies backend. Break into small sub-tasks. |
+| **D1 free tier limits hit** | Data loss or downtime | Low | Batch inserts, denormalized counts, cap dataset sizes in free tier. |
+| **BYOK UX is confusing** | Users bounce during setup | Medium | Clear onboarding, test with different API keys, "Try with demo data" flow. |
+| **Judge scoring is noisy/inconsistent** | Users don't trust results | Medium | Default to deterministic checks, low judge temperature (0.1), store rationale. |
+| **Scope creep into P1/P2 features** | MVP never ships | High | Ruthlessly follow the phased plan. Ship iterations, not features. |
+| **No users after launch** | Product dies | Medium | Build in public from day 1 to accumulate audience before launch. |
+| **CORS issues with BYOK calls** | LLM API calls fail from browser | Medium | Test each provider's CORS policy. Fallback: proxy through a thin Worker endpoint that forwards the user's key. |
+
+---
+
+## Active Mitigations
+
+### Scope Creep (High Risk)
+
+This is the highest-risk item. The mitigations are structural:
+
+- Each MVP has a locked acceptance gate — nothing ships until the gate is met
+- Non-goals are documented explicitly (see [MVP Overview](/build-guide/mvp-overview))
+- Every PR must match the implementation plan task — no scope expansion without a new task
+- Browser-first eval model is locked — no server-side orchestration proposals accepted
+
+### BYOK UX
+
+The clearest onboarding risk. Mitigations:
+
+- "Try with demo data" path requires zero setup
+- Key input UI clearly explains where the key is stored and that it never leaves the project
+- Deterministic-only eval mode works with no provider key at all
+- Link directly to the provider's key creation page
+
+### Judge Scoring Consistency
+
+Users will stop trusting the tool if judge scores feel arbitrary. Mitigations:
+
+- Default `temperature: 0.1` for all judge calls
+- Store the judge's `reasons` and `fails` fields alongside the score — users can read the rationale
+- Present judge scores as a signal alongside deterministic checks, not as the single source of truth
+- Encourage users to use deterministic checks as the primary gate and judge as supplementary

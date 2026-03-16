@@ -1,0 +1,95 @@
+---
+title: "SDK Overview"
+description: "Log production LLM runs from any Node.js application."
+---
+
+The PromptOps SDK is a lightweight TypeScript/Node.js client for logging production runs to PromptOps Studio. It links your live LLM calls to specific prompt versions, enabling the observability dashboards and run explorer.
+
+## When to Use the SDK
+
+<CardGroup cols={2}>
+  <Card title="Production Logging" icon="server">
+    Log every LLM call in your production app. Track latency, token usage, and
+    cost over time.
+  </Card>
+  <Card title="Version Tracking" icon="code-branch">
+    Link each run to a specific prompt version. See exactly which version is
+    live and how it's performing.
+  </Card>
+  <Card title="Guardrail Monitoring" icon="shield">
+    Log guardrail check results alongside outputs to track PII or injection
+    detections over time.
+  </Card>
+  <Card title="Cost Attribution" icon="dollar-sign">
+    Log token counts and cost estimates per run to track LLM spend by prompt
+    version.
+  </Card>
+</CardGroup>
+
+## How It Works
+
+The SDK sends run data to your PromptOps Studio backend after your LLM call completes. It does **not** intercept or proxy the LLM call itself — your inference path stays direct.
+
+```
+Your App → LLM Provider (direct)
+Your App → PromptOps SDK → PromptOps Backend (async logging)
+```
+
+Logging is non-blocking — it won't slow down your LLM response path.
+
+## Install
+
+```bash
+npm install @promptops/sdk
+# or
+pnpm add @promptops/sdk
+```
+
+## Quick Example
+
+```typescript
+import { PromptOps } from "@promptops/sdk";
+import OpenAI from "openai";
+
+const promptops = new PromptOps({
+  apiKey: process.env.PROMPTOPS_API_KEY,
+  // baseUrl: "https://your-worker.workers.dev" (defaults to hosted version)
+});
+
+const openai = new OpenAI();
+
+async function extractInvoice(invoiceText: string) {
+  const start = Date.now();
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    messages: [
+      {
+        role: "user",
+        content: `Extract vendor, total, date, and currency from:\n\n${invoiceText}`
+      }
+    ]
+  });
+
+  const output = response.choices[0].message.content ?? "";
+  const latencyMs = Date.now() - start;
+
+  // Log to PromptOps (non-blocking)
+  promptops.log({
+    promptVersionId: "01HXV...",   // The released version's ID
+    input: { invoice_text: invoiceText },
+    output,
+    metrics: {
+      latencyMs,
+      tokenCount: response.usage?.total_tokens,
+      costEstimate: (response.usage?.total_tokens ?? 0) * 0.00000015, // gpt-4o-mini pricing
+    }
+  });
+
+  return output;
+}
+```
+
+<Note>
+  `promptops.log()` returns a Promise but you don't need to await it in most cases. Errors are caught internally and logged to console — they won't throw in your application.
+</Note>
